@@ -11,13 +11,13 @@ import { dirname, resolve } from 'node:path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load .env from project root (one level up from api/server.ts)
+// Load .env from project root (two levels up from scripts/server.ts)
 const envPath = resolve(__dirname, '..', '.env');
 config({ path: envPath });
 
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
-import { handleStatusRequest } from './handler.js';
+import { handleStatusRequest } from '../lib/api-handler.js';
 
 const PORT = process.env.PORT || 3001;
 

@@ -1,9 +1,9 @@
-import type { OceanStatusResponse } from './services/ocean-status.service.js';
-import { OceanStatusService } from './services/ocean-status.service.js';
-import { bayahibeConfig } from './regions/bayahibe.config.js';
-import { puntaCanaConfig } from './regions/punta-cana.config.js';
-import { sosuaConfig } from './regions/sosua.config.js';
-import { cabareteConfig } from './regions/cabarete.config.js';
+import type { OceanStatusResponse } from '../api/services/ocean-status.service.js';
+import { OceanStatusService } from '../api/services/ocean-status.service.js';
+import { bayahibeConfig } from '../api/regions/bayahibe.config.js';
+import { puntaCanaConfig } from '../api/regions/punta-cana.config.js';
+import { sosuaConfig } from '../api/regions/sosua.config.js';
+import { cabareteConfig } from '../api/regions/cabarete.config.js';
 
 /**
  * Simple in-memory cache
