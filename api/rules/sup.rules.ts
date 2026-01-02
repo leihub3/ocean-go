@@ -20,6 +20,9 @@ export function evaluateSUP(context: RuleContext): ActivityRecommendation {
   const windEval = BaseRules.evaluateWind(weather.windSpeed, thresholds.maxWindSpeed);
   const rainEval = BaseRules.evaluateRain(weather.rain, thresholds.maxRain);
 
+  // Debug logging for evaluation consistency
+  console.log(`[SUP Evaluation] Wind: ${weather.windSpeed.toFixed(1)} m/s, Threshold: ${thresholds.maxWindSpeed} m/s, Eval: ${windEval.status} (should be good if <= ${(thresholds.maxWindSpeed * 0.7).toFixed(1)} m/s)`);
+
   // SUP LOGIC: Wind determines everything
   let finalStatus: typeof windEval.status;
   
@@ -52,7 +55,8 @@ export function evaluateSUP(context: RuleContext): ActivityRecommendation {
     }
   } else if (finalStatus === 'caution') {
     if (windEval.status === 'caution') {
-      reason = `Moderate wind (${weather.windSpeed.toFixed(1)} m/s). Good for experienced paddlers, but beginners should be cautious. Balance will be more challenging.`;
+      const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+      reason = `Moderate wind (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s). Good for experienced paddlers, but beginners should be cautious. Balance will be more challenging.`;
     } else if (rainEval.status === 'bad') {
       reason = 'Heavy rain expected, but wind is calm. Conditions are safe for experienced paddlers.';
     } else {
@@ -60,7 +64,9 @@ export function evaluateSUP(context: RuleContext): ActivityRecommendation {
     }
   } else {
     // Bad status - wind is the ONLY problem
-    reason = `Too windy (${weather.windSpeed.toFixed(1)} m/s) for safe SUP. Water will be choppy and balance difficult. Wait for calmer conditions.`;
+    // Convert to km/h for user-friendly display
+    const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+    reason = `Too windy (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s) for safe SUP. Water will be choppy and balance difficult. Wait for calmer conditions.`;
   }
 
   // Calculate ideal window (shorter for SUP - most sensitive)

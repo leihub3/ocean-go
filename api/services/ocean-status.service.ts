@@ -58,20 +58,33 @@ export class OceanStatusService {
       errors.push(tidesResult.error);
     }
 
-    // Prepare rule context
-    const context: RuleContext = {
-      weather: weatherResult.data,
-      tides: tidesResult.data,
-      hourlyForecast: weatherResult.hourly,
-      thresholds: regionConfig.thresholds,
-    };
-
     // Evaluate each activity using its specific rules
+    // Each activity needs its own thresholds
     const activities: Record<ActivityType, ActivityRecommendation> = {
-      snorkeling: evaluateSnorkeling(context),
-      kayaking: evaluateKayaking(context),
-      sup: evaluateSUP(context),
-      fishing: evaluateFishing(context),
+      snorkeling: evaluateSnorkeling({
+        weather: weatherResult.data,
+        tides: tidesResult.data,
+        hourlyForecast: weatherResult.hourly,
+        thresholds: regionConfig.thresholds.snorkeling,
+      }),
+      kayaking: evaluateKayaking({
+        weather: weatherResult.data,
+        tides: tidesResult.data,
+        hourlyForecast: weatherResult.hourly,
+        thresholds: regionConfig.thresholds.kayaking,
+      }),
+      sup: evaluateSUP({
+        weather: weatherResult.data,
+        tides: tidesResult.data,
+        hourlyForecast: weatherResult.hourly,
+        thresholds: regionConfig.thresholds.sup,
+      }),
+      fishing: evaluateFishing({
+        weather: weatherResult.data,
+        tides: tidesResult.data,
+        hourlyForecast: weatherResult.hourly,
+        thresholds: regionConfig.thresholds.fishing,
+      }),
     };
 
     // Determine current and next tide

@@ -22,10 +22,11 @@ interface ActivityCardProps {
   activityName: string;
   recommendation: ActivityRecommendation;
   hourlyForecast?: HourlyForecast[];
+  currentConditions?: { windSpeed: number; cloudiness: number; rain: number };
   onClick?: () => void;
 }
 
-export const ActivityCard = ({ activityName, recommendation, hourlyForecast, onClick }: ActivityCardProps) => {
+export const ActivityCard = ({ activityName, recommendation, hourlyForecast, currentConditions, onClick }: ActivityCardProps) => {
   const emoji = ACTIVITY_EMOJIS[activityName] || '🌊';
   const label = ACTIVITY_LABELS[activityName] || activityName;
 
@@ -65,6 +66,7 @@ export const ActivityCard = ({ activityName, recommendation, hourlyForecast, onC
         <ActivityMiniForecast
           activityType={activityName as ActivityType}
           hourlyForecast={hourlyForecast}
+          currentConditions={currentConditions}
         />
       )}
     </div>

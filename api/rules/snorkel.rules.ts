@@ -68,7 +68,8 @@ export function evaluateSnorkeling(context: RuleContext): ActivityRecommendation
     }
   } else if (finalStatus === 'caution') {
     if (windEval.status === 'caution') {
-      reason = `Moderate wind (${weather.windSpeed.toFixed(1)} m/s) will create some surface chop. Visibility may be reduced, but snorkeling is still possible.`;
+      const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+      reason = `Moderate wind (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s) will create some surface chop. Visibility may be reduced, but snorkeling is still possible.`;
     } else if (windEval.status === 'good' && cloudsEval.status === 'bad') {
       // This is the key case: calm sea but cloudy
       reason = `Sea is calm, making snorkeling safe. Cloudy skies reduce light and color vibrancy, but visibility underwater is still good.`;
@@ -82,7 +83,8 @@ export function evaluateSnorkeling(context: RuleContext): ActivityRecommendation
   } else {
     // Bad status - wind or heavy rain is the problem
     if (windEval.status === 'bad') {
-      reason = `Wind is too strong (${weather.windSpeed.toFixed(1)} m/s) for safe snorkeling. Water will be choppy with poor visibility. Wait for calmer conditions.`;
+      const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+      reason = `Wind is too strong (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s) for safe snorkeling. Water will be choppy with poor visibility. Wait for calmer conditions.`;
     } else if (rainEval.status === 'bad') {
       reason = 'Heavy rain expected. Conditions will be unsafe with poor visibility. Wait for better weather.';
     } else {

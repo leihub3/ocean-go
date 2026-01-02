@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { ActivityType, ActivityRecommendation, CurrentConditions, HourlyForecast } from '../types';
+import { getActivityStatusForHour } from '../utils/activityRules';
 import { StatusIndicator } from './StatusIndicator';
 import styles from './ActivityDetailsModal.module.css';
 
@@ -94,9 +95,9 @@ export const ActivityDetailsModal = ({
                   <div className={styles.conditionInfo}>
                     <div className={styles.conditionLabel}>Wind</div>
                     <div className={styles.conditionValue}>
-                      {conditions.weather.windSpeed.toFixed(1)} m/s
+                      {(conditions.weather.windSpeed * 3.6).toFixed(1)} km/h
                       <span className={styles.conditionUnit}>
-                        ({(conditions.weather.windSpeed * 3.6).toFixed(1)} km/h)
+                        ({conditions.weather.windSpeed.toFixed(1)} m/s)
                       </span>
                     </div>
                   </div>
@@ -133,7 +134,7 @@ export const ActivityDetailsModal = ({
               <div className={styles.forecastChart}>
                 {hourlyForecast.slice(0, 12).map((hour, index) => {
                   const time = new Date(hour.time);
-                  const isGood = hour.windSpeed <= 8 && hour.cloudiness <= 60 && hour.rain === 0;
+                  const status = getActivityStatusForHour(hour, activityType);
                   
                   return (
                     <div key={index} className={styles.forecastBar}>
@@ -142,7 +143,7 @@ export const ActivityDetailsModal = ({
                       </div>
                       <div className={styles.forecastIndicator}>
                         <div
-                          className={`${styles.forecastBarInner} ${isGood ? styles.good : styles.caution}`}
+                          className={`${styles.forecastBarInner} ${styles[status]}`}
                           style={{
                             height: `${Math.min(100, (hour.windSpeed / 15) * 100)}%`,
                           }}
@@ -150,7 +151,7 @@ export const ActivityDetailsModal = ({
                       </div>
                       <div className={styles.forecastDetails}>
                         <div className={styles.forecastWind}>
-                          {hour.windSpeed.toFixed(1)} m/s
+                          {(hour.windSpeed * 3.6).toFixed(1)} km/h
                         </div>
                         {hour.rain > 0 && (
                           <div className={styles.forecastRain}>🌧️</div>

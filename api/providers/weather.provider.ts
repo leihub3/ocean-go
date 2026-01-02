@@ -109,26 +109,29 @@ export class WeatherProvider {
     const now = new Date();
     const hour = now.getHours();
     
-    // Simulate realistic weather patterns
-    const baseWindSpeed = 5 + Math.sin((hour / 24) * Math.PI * 2) * 3;
-    const baseCloudiness = 30 + Math.random() * 20;
-    const baseRain = hour >= 14 && hour <= 18 ? Math.random() * 2 : 0;
+    // Simulate realistic weather patterns - using lower, more realistic wind speeds
+    // Base wind between 2-4 m/s (calm to light breeze), matching typical Caribbean conditions
+    const baseWindSpeed = 3 + Math.sin((hour / 24) * Math.PI * 2) * 1; // 2-4 m/s range
+    const baseCloudiness = 40 + Math.random() * 30; // 40-70% typical
+    const baseRain = hour >= 14 && hour <= 18 ? Math.random() * 0.5 : 0; // Light rain if any
 
     const mockHourly: HourlyForecast[] = Array.from({ length: 24 }, (_, i) => {
       const forecastHour = (hour + i) % 24;
+      // Hourly variation: slightly different from current but similar
+      const hourWindSpeed = baseWindSpeed + (Math.random() * 2 - 1) * 0.5; // ±0.5 m/s variation
       return {
         time: new Date(now.getTime() + i * 60 * 60 * 1000).toISOString(),
-        windSpeed: baseWindSpeed + Math.random() * 2 - 1,
-        rain: forecastHour >= 14 && forecastHour <= 18 ? Math.random() * 1.5 : 0,
-        cloudiness: baseCloudiness + Math.random() * 10 - 5,
+        windSpeed: Math.max(0.5, hourWindSpeed), // Ensure positive
+        rain: forecastHour >= 14 && forecastHour <= 18 ? Math.random() * 0.3 : 0,
+        cloudiness: Math.max(0, Math.min(100, baseCloudiness + Math.random() * 10 - 5)),
       };
     });
 
     return {
       data: {
-        windSpeed: baseWindSpeed,
-        cloudiness: baseCloudiness,
-        rain: baseRain,
+        windSpeed: Math.max(0.5, baseWindSpeed), // Ensure positive
+        cloudiness: Math.max(0, Math.min(100, baseCloudiness)),
+        rain: Math.max(0, baseRain),
         timestamp: now.toISOString(),
       },
       hourly: mockHourly,

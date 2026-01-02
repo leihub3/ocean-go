@@ -80,7 +80,7 @@ export const OceanConditionsChart = ({
             if (entry.dataKey === 'windSpeed') {
               return (
                 <p key={index} style={{ color: entry.color }}>
-                  💨 Wind: {entry.value} m/s ({(entry.payload.windKmh)} km/h)
+                  💨 Wind: {(entry.payload.windKmh)} km/h ({entry.value} m/s)
                 </p>
               );
             }

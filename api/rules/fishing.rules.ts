@@ -92,9 +92,11 @@ export function evaluateFishing(context: RuleContext): ActivityRecommendation {
   } else {
     // Bad status - poor conditions
     if (windEval.status === 'bad' && tideEval.status === 'bad') {
-      reason = `Poor fishing conditions. Wind is too strong (${weather.windSpeed.toFixed(1)} m/s) and tide timing is not ideal. Wait for better conditions.`;
+      const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+      reason = `Poor fishing conditions. Wind is too strong (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s) and tide timing is not ideal. Wait for better conditions.`;
     } else if (windEval.status === 'bad') {
-      reason = `Wind is too strong (${weather.windSpeed.toFixed(1)} m/s) for comfortable fishing. Wait for calmer conditions.`;
+      const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+      reason = `Wind is too strong (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s) for comfortable fishing. Wait for calmer conditions.`;
     } else {
       reason = 'Poor fishing conditions. Wait for better tide timing and calmer weather.';
     }

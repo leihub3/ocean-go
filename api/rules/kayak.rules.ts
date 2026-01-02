@@ -53,7 +53,8 @@ export function evaluateKayaking(context: RuleContext): ActivityRecommendation {
     }
   } else if (finalStatus === 'caution') {
     if (windEval.status === 'caution') {
-      reason = `Moderate wind (${weather.windSpeed.toFixed(1)} m/s). Experienced kayakers should be fine, but beginners should be cautious. Sea conditions are manageable.`;
+      const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+      reason = `Moderate wind (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s). Experienced kayakers should be fine, but beginners should be cautious. Sea conditions are manageable.`;
     } else if (rainEval.status === 'bad') {
       reason = 'Heavy rain expected, but sea is calm. Conditions are safe but may be uncomfortable.';
     } else {
@@ -61,7 +62,8 @@ export function evaluateKayaking(context: RuleContext): ActivityRecommendation {
     }
   } else {
     // Bad status - wind is the problem
-    reason = `Wind is too strong (${weather.windSpeed.toFixed(1)} m/s) for safe kayaking. Sea will be choppy. Wait for calmer conditions.`;
+    const windKmh = (weather.windSpeed * 3.6).toFixed(1);
+    reason = `Wind is too strong (${windKmh} km/h / ${weather.windSpeed.toFixed(1)} m/s) for safe kayaking. Sea will be choppy. Wait for calmer conditions.`;
   }
 
   // Calculate ideal window

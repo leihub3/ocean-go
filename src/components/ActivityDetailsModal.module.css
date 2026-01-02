@@ -233,6 +233,10 @@
   background: #f59e0b;
 }
 
+.forecastBarInner.bad {
+  background: #ef4444;
+}
+
 .forecastDetails {
   display: flex;
   flex-direction: column;

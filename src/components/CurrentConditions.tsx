@@ -41,8 +41,8 @@ export const CurrentConditions = ({ conditions }: CurrentConditionsProps) => {
           <div className={styles.content}>
             <div className={styles.label}>Wind</div>
             <div className={styles.value}>
-              {weather.windSpeed.toFixed(1)} m/s
-              <span className={styles.unit}>({windSpeedKmh} km/h)</span>
+              {windSpeedKmh} km/h
+              <span className={styles.unit}>({weather.windSpeed.toFixed(1)} m/s)</span>
             </div>
           </div>
         </div>

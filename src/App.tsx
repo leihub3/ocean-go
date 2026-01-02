@@ -300,6 +300,11 @@ function App() {
                       activityName={key}
                       recommendation={recommendation}
                       hourlyForecast={data.hourlyForecast || data.conditions?.hourlyForecast}
+                      currentConditions={data.conditions?.weather ? {
+                        windSpeed: data.conditions.weather.windSpeed,
+                        cloudiness: data.conditions.weather.cloudiness,
+                        rain: data.conditions.weather.rain,
+                      } : undefined}
                       onClick={() => setSelectedActivity(key)}
                     />
                   ))}

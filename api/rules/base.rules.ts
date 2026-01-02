@@ -126,9 +126,9 @@ export class BaseRules {
     for (let i = startHours; i < Math.min(startHours + maxHours, hourlyForecast.length); i++) {
       const forecast = hourlyForecast[i];
       
-      const wind = this.evaluateWind(forecast.windSpeed, thresholds.maxWindSpeed);
-      const clouds = this.evaluateCloudiness(forecast.cloudiness, thresholds.maxCloudiness);
-      const rain = this.evaluateRain(forecast.rain, thresholds.maxRain);
+      const wind = this.evaluateWind(forecast.windSpeed, thresholds?.maxWindSpeed || 10);
+      const clouds = this.evaluateCloudiness(forecast.cloudiness, thresholds?.maxCloudiness || 100);
+      const rain = this.evaluateRain(forecast.rain, thresholds?.maxRain || 5);
 
       // Count as good if all conditions are at least caution-level
       if (wind.status !== 'bad' && clouds.status !== 'bad' && rain.status !== 'bad') {
