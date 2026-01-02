@@ -1,0 +1,7 @@
+# Development server (not needed for Vercel deployment)
+api/server.ts
+
+# Vercel only needs the route handler, not the intermediate handler.ts
+# But we keep handler.ts for now since status.ts imports it
+# (Vercel should bundle it, not treat it as a separate function)
+

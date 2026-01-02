@@ -40,7 +40,6 @@ interface TidesProviderResult {
  */
 export class TidesProvider {
   private apiKey: string;
-  private baseUrl = 'https://www.worldtides.info/api/v3';
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.WORLDTIDES_API_KEY || '';
@@ -76,7 +75,7 @@ export class TidesProvider {
         throw new Error(`WorldTides API error: ${response.status} ${response.statusText}`);
       }
 
-      const rawData: WorldTidesResponse = await response.json();
+      const rawData = await response.json() as WorldTidesResponse;
 
       if (rawData.error) {
         throw new Error(rawData.error);
@@ -112,32 +111,40 @@ export class TidesProvider {
         // Find peaks (high tides) and troughs (low tides) in the heights array
         // Use a window to identify true peaks/troughs
         for (let i = 2; i < heights.length - 2; i++) {
+          const prev2 = heights[i - 2];
+          const prev1 = heights[i - 1];
+          const currHeight = heights[i];
+          const next1 = heights[i + 1];
+          const next2 = heights[i + 2];
+          
+          if (!prev2 || !prev1 || !currHeight || !next1 || !next2) continue;
+          
           const window = [
-            heights[i - 2].height,
-            heights[i - 1].height,
-            heights[i].height,
-            heights[i + 1].height,
-            heights[i + 2].height,
+            prev2.height,
+            prev1.height,
+            currHeight.height,
+            next1.height,
+            next2.height,
           ];
           
-          const curr = heights[i].height;
+          const curr = currHeight.height;
           const maxInWindow = Math.max(...window);
           const minInWindow = Math.min(...window);
           
           // Local maximum = high tide (must be the highest in a 5-point window and above average)
-          if (curr === maxInWindow && curr > avgHeight && curr > 0.3) {
+          if (curr === maxInWindow && curr > avgHeight && curr > 0.3 && currHeight) {
             normalized.push({
               type: 'high',
               height: curr,
-              time: new Date(heights[i].dt * 1000).toISOString(),
+              time: new Date(currHeight.dt * 1000).toISOString(),
             });
           }
           // Local minimum = low tide (must be the lowest in a 5-point window and below average)
-          else if (curr === minInWindow && curr < avgHeight && curr < 0.7) {
+          else if (curr === minInWindow && curr < avgHeight && curr < 0.7 && currHeight) {
             normalized.push({
               type: 'low',
               height: curr,
-              time: new Date(heights[i].dt * 1000).toISOString(),
+              time: new Date(currHeight.dt * 1000).toISOString(),
             });
           }
         }
@@ -146,22 +153,28 @@ export class TidesProvider {
         if (normalized.length < 4) {
           normalized = [];
           for (let i = 1; i < heights.length - 1; i++) {
-            const prev = heights[i - 1].height;
-            const curr = heights[i].height;
-            const next = heights[i + 1].height;
+            const prevHeight = heights[i - 1];
+            const currHeight = heights[i];
+            const nextHeight = heights[i + 1];
+            
+            if (!prevHeight || !currHeight || !nextHeight) continue;
+            
+            const prev = prevHeight.height;
+            const curr = currHeight.height;
+            const next = nextHeight.height;
             
             // More lenient peak/trough detection
             if (curr > prev && curr > next && curr > 0.3) {
               normalized.push({
                 type: 'high',
                 height: curr,
-                time: new Date(heights[i].dt * 1000).toISOString(),
+                time: new Date(currHeight.dt * 1000).toISOString(),
               });
             } else if (curr < prev && curr < next && curr < 0.7) {
               normalized.push({
                 type: 'low',
                 height: curr,
-                time: new Date(heights[i].dt * 1000).toISOString(),
+                time: new Date(currHeight.dt * 1000).toISOString(),
               });
             }
           }
@@ -212,7 +225,6 @@ export class TidesProvider {
     const startIsHigh = Math.random() > 0.5;
     let currentTime = new Date(now);
     let isHigh = startIsHigh;
-    let baseHeight = isHigh ? 0.8 + Math.random() * 0.4 : 0.2 + Math.random() * 0.3;
 
     // Generate 48 hours of tides (approximately 16 tide changes)
     for (let i = 0; i < 16; i++) {

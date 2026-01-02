@@ -7,7 +7,6 @@ import { evaluateSnorkeling } from '../rules/snorkel.rules.js';
 import { evaluateKayaking } from '../rules/kayak.rules.js';
 import { evaluateSUP } from '../rules/sup.rules.js';
 import { evaluateFishing } from '../rules/fishing.rules.js';
-import type { RuleContext } from '../rules/base.rules.js';
 
 export interface CurrentConditions {
   weather: WeatherData;
@@ -41,7 +40,7 @@ export class OceanStatusService {
    * Get ocean status for a region
    */
   async getOceanStatus(regionConfig: RegionConfig): Promise<OceanStatusResponse> {
-    const { coordinates, id, name } = regionConfig;
+    const { coordinates, name } = regionConfig;
 
     // Fetch data from providers in parallel
     const [weatherResult, tidesResult] = await Promise.all([

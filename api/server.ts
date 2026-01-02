@@ -7,7 +7,6 @@
 import { config } from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,7 +42,7 @@ const server = createServer(async (req, res) => {
     try {
       const request = new Request(url.toString(), {
         method: req.method || 'GET',
-        headers: req.headers as HeadersInit,
+        headers: req.headers as Record<string, string>,
       });
       
       const response = await handleStatusRequest(request);

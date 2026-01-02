@@ -1,4 +1,4 @@
-import type { ActivityStatus, ActivityRecommendation } from '../types/activity.js';
+import type { ActivityStatus } from '../types/activity.js';
 import type { ActivityThresholds } from '../types/region.js';
 import type { WeatherData, TideData, HourlyForecast } from '../types/index.js';
 
@@ -120,11 +120,12 @@ export class BaseRules {
       return undefined;
     }
 
-    const now = new Date();
     let goodHours = 0;
 
     for (let i = startHours; i < Math.min(startHours + maxHours, hourlyForecast.length); i++) {
       const forecast = hourlyForecast[i];
+      
+      if (!forecast) break;
       
       const wind = this.evaluateWind(forecast.windSpeed, thresholds?.maxWindSpeed || 10);
       const clouds = this.evaluateCloudiness(forecast.cloudiness, thresholds?.maxCloudiness || 100);

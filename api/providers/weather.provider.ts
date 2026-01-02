@@ -64,7 +64,7 @@ export class WeatherProvider {
         throw new Error(`OpenWeather API error: ${response.status} ${response.statusText}`);
       }
 
-      const rawData: OpenWeatherResponse = await response.json();
+      const rawData = await response.json() as OpenWeatherResponse;
 
       // Normalize to internal model
       const normalized: WeatherData = {
