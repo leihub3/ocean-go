@@ -17,7 +17,9 @@ config({ path: envPath });
 
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
-import { handleStatusRequest } from '../lib/api-handler.js';
+// Import the handler from the Vercel function (reuses the same code)
+// Create a Request object adapter for the dev server
+import handler from '../api/status.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -45,7 +47,7 @@ const server = createServer(async (req, res) => {
         headers: req.headers as Record<string, string>,
       });
       
-      const response = await handleStatusRequest(request);
+      const response = await handler(request);
       
       // Merge CORS headers with response headers
       const responseHeaders: Record<string, string> = {};

@@ -1,7 +1,11 @@
-# Development server (moved to scripts/, not needed for Vercel deployment)
+# Development server (not needed for Vercel deployment)
 scripts/
 
-# Library code (moved from api/, not serverless functions)
+# Library code (not serverless functions)
 lib/
+
+# API documentation and config (not functions)
+api/README.md
+api/tsconfig.json
 
 
