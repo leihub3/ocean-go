@@ -104,6 +104,7 @@ export default async function handler(request: Request): Promise<Response> {
         headers: {
           'Content-Type': 'application/json',
           'X-Cache': 'HIT',
+          'Access-Control-Allow-Origin': '*',
         },
       });
     }
@@ -113,20 +114,31 @@ export default async function handler(request: Request): Promise<Response> {
     try {
       regionConfig = getRegionConfig(regionId);
     } catch (error) {
+      console.error('Region config error:', error);
       return new Response(
         JSON.stringify({
           error: error instanceof Error ? error.message : 'Invalid region',
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
         }
       );
     }
 
     // Get ocean status
-    const service = new OceanStatusService();
-    const status = await service.getOceanStatus(regionConfig);
+    let status;
+    try {
+      const service = new OceanStatusService();
+      status = await service.getOceanStatus(regionConfig);
+    } catch (error) {
+      console.error('Service error:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+      throw error; // Re-throw to be caught by outer catch
+    }
 
     // Cache the result
     setCache(regionId, status);
@@ -136,18 +148,29 @@ export default async function handler(request: Request): Promise<Response> {
       headers: {
         'Content-Type': 'application/json',
         'X-Cache': 'MISS',
+        'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (error) {
     console.error('Handler error:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack',
+      name: error instanceof Error ? error.name : 'Unknown',
+    });
     return new Response(
       JSON.stringify({
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error',
+        // Include stack in development/debugging (remove in production if needed)
+        ...(process.env.NODE_ENV !== 'production' && error instanceof Error && { stack: error.stack }),
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
       }
     );
   }

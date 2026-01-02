@@ -1,11 +1,10 @@
 # Development server (not needed for Vercel deployment)
 scripts/
 
-# Library code (not serverless functions)
-lib/
-
-# API documentation and config (not functions)
+# API documentation (not needed for deployment)
 api/README.md
-api/tsconfig.json
+
+# Note: lib/ is NOT ignored - Vercel needs it to resolve imports from api/status.ts
+# Even though lib/ files aren't serverless functions, they must be available for imports
 
 
