@@ -26,7 +26,7 @@ import styles from './App.module.css';
 const ACTIVITY_ORDER: ActivityType[] = ['snorkeling', 'kayaking', 'sup', 'fishing'];
 
 function App() {
-  const [selectedRegion, setSelectedRegion] = useState<Region>(DEFAULT_REGION);
+  const [selectedRegion, setSelectedRegion] = useState<Region>(DEFAULT_REGION || REGIONS[0]!);
   const [data, setData] = useState<OceanGoResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +142,7 @@ function App() {
   }, []);
 
   // Pull to refresh
-  const { isRefreshing, pullDistance, progress } = usePullToRefresh({
+  const { pullDistance, progress } = usePullToRefresh({
     onRefresh: fetchRecommendations,
     enabled: !isLoading && !error && !isOffline,
   });
@@ -294,20 +294,23 @@ function App() {
 
               return (
                 <div className={styles.activities}>
-                  {visibleActivities.map(({ key, recommendation }) => (
-                    <ActivityCard
-                      key={key}
-                      activityName={key}
-                      recommendation={recommendation}
-                      hourlyForecast={data.hourlyForecast || data.conditions?.hourlyForecast}
-                      currentConditions={data.conditions?.weather ? {
-                        windSpeed: data.conditions.weather.windSpeed,
-                        cloudiness: data.conditions.weather.cloudiness,
-                        rain: data.conditions.weather.rain,
-                      } : undefined}
-                      onClick={() => setSelectedActivity(key)}
-                    />
-                  ))}
+                  {visibleActivities.map(({ key, recommendation }) => {
+                    if (!recommendation) return null;
+                    return (
+                      <ActivityCard
+                        key={key}
+                        activityName={key}
+                        recommendation={recommendation}
+                        hourlyForecast={data.hourlyForecast || data.conditions?.hourlyForecast}
+                        currentConditions={data.conditions?.weather ? {
+                          windSpeed: data.conditions.weather.windSpeed,
+                          cloudiness: data.conditions.weather.cloudiness,
+                          rain: data.conditions.weather.rain,
+                        } : undefined}
+                        onClick={() => setSelectedActivity(key)}
+                      />
+                    );
+                  })}
                 </div>
               );
             })()}

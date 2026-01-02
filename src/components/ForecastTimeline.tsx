@@ -6,7 +6,7 @@ interface ForecastTimelineProps {
   region: string;
 }
 
-export const ForecastTimeline = ({ forecast, region }: ForecastTimelineProps) => {
+export const ForecastTimeline = ({ forecast }: ForecastTimelineProps) => {
   // Show next 12 hours
   const next12Hours = forecast.slice(0, 12);
 

@@ -1,8 +1,8 @@
-import type { CurrentConditions } from '../types';
+import type { CurrentConditions as CurrentConditionsType } from '../types';
 import styles from './CurrentConditions.module.css';
 
 interface CurrentConditionsProps {
-  conditions: CurrentConditions;
+  conditions: CurrentConditionsType;
 }
 
 export const CurrentConditions = ({ conditions }: CurrentConditionsProps) => {

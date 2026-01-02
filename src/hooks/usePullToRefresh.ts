@@ -12,8 +12,6 @@ export const usePullToRefresh = ({
   threshold = 80,
 }: UsePullToRefreshOptions) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const startY = useRef<number>(0);
-  const currentY = useRef<number>(0);
   const [pullDistance, setPullDistance] = useState(0);
   const isPulling = useRef(false);
   const touchStartY = useRef<number>(0);
@@ -26,14 +24,14 @@ export const usePullToRefresh = ({
 
     const handleTouchStart = (e: TouchEvent) => {
       // Only trigger if at the top of the scrollable area
-      if (window.scrollY === 0 || container.scrollTop === 0) {
+      if ((window.scrollY === 0 || container.scrollTop === 0) && e.touches[0]) {
         touchStartY.current = e.touches[0].clientY;
         isPulling.current = true;
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (!isPulling.current) return;
+      if (!isPulling.current || !e.touches[0]) return;
 
       const currentTouchY = e.touches[0].clientY;
       const deltaY = currentTouchY - touchStartY.current;

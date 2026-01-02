@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { ActivityType, ActivityRecommendation, CurrentConditions, HourlyForecast } from '../types';
+import type { ActivityType, ActivityRecommendation, CurrentConditions } from '../types';
 import { getActivityStatusForHour } from '../utils/activityRules';
 import { StatusIndicator } from './StatusIndicator';
 import styles from './ActivityDetailsModal.module.css';
