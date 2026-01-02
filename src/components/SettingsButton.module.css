@@ -1,0 +1,30 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.button:hover {
+  background: #f9fafb;
+  border-color: #0ea5e9;
+  transform: rotate(90deg);
+}
+
+.button:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+.icon {
+  font-size: 20px;
+  line-height: 1;
+  display: block;
+}
+

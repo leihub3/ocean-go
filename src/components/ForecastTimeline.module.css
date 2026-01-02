@@ -1,0 +1,143 @@
+.container {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: #1f2937;
+}
+
+.timeline {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  overflow-x: auto;
+  min-height: 140px;
+}
+
+.hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 50px;
+  flex: 1;
+  position: relative;
+}
+
+.hour.current {
+  background: rgba(14, 165, 233, 0.1);
+  border-radius: 8px;
+  padding: 4px;
+  margin: -4px;
+}
+
+.time {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.indicator {
+  width: 100%;
+  height: 80px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height 0.3s ease, background-color 0.3s ease;
+}
+
+.hour.good .bar {
+  background: #10b981;
+}
+
+.hour.caution .bar {
+  background: #f59e0b;
+}
+
+.hour.bad .bar {
+  background: #ef4444;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.wind {
+  font-size: 10px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.rain {
+  font-size: 12px;
+}
+
+.nowLabel {
+  position: absolute;
+  top: -20px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #0ea5e9;
+  background: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #0ea5e9;
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.legendBar {
+  width: 20px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.legendBar.good {
+  background: #10b981;
+}
+
+.legendBar.caution {
+  background: #f59e0b;
+}
+
+.legendBar.bad {
+  background: #ef4444;
+}
+

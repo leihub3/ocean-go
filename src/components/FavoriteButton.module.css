@@ -1,0 +1,39 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.button:hover {
+  background: #f9fafb;
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+}
+
+.button:active {
+  transform: scale(0.95);
+}
+
+.icon {
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.button:hover .icon {
+  transform: scale(1.1);
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+}
+

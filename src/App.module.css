@@ -1,0 +1,196 @@
+.app {
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #e0f2fe 0%, #f0f9ff 100%);
+  padding-bottom: 40px;
+}
+
+.header {
+  background: white;
+  padding: 24px 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.headerContent {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerContent > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .headerContent > div:first-child {
+    text-align: center;
+  }
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: #0ea5e9;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 500;
+}
+
+.main {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  position: relative;
+}
+
+.pullToRefresh {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.pullToRefreshIcon {
+  font-size: 24px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.pullToRefreshText {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.controls {
+  margin-bottom: 24px;
+}
+
+.regionControls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.regionActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.favoritesToggle {
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.favoritesToggle:hover {
+  background: #f9fafb;
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+}
+
+.activities {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 16px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 15px;
+  margin: 24px 0;
+}
+
+.footer {
+  margin-top: 32px;
+  text-align: center;
+}
+
+.footerControls {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.footerContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footerText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.timestamp {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.mockDataIndicator {
+  font-size: 11px;
+  color: #f59e0b;
+  margin: 0;
+  font-weight: 500;
+}
+
+@media (min-width: 640px) {
+  .header {
+    padding: 32px 20px;
+  }
+
+  .title {
+    font-size: 40px;
+  }
+
+  .main {
+    padding: 32px 24px;
+  }
+
+  .activities {
+    gap: 20px;
+  }
+}
+
