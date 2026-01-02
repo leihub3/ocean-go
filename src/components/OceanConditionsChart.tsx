@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import type { HourlyForecast, TideData } from '../types';
+import { InfoPopover } from './InfoPopover';
 import styles from './OceanConditionsChart.module.css';
 
 interface OceanConditionsChartProps {
@@ -108,7 +109,31 @@ export const OceanConditionsChart = ({
 
   return (
     <div className={styles.container}>
-      <h3 className={styles.title}>12-Hour Forecast</h3>
+      <div className={styles.titleRow}>
+        <h3 className={styles.title}>12-Hour Forecast</h3>
+        <InfoPopover
+          title="Understanding the Forecast Chart"
+          content={
+            <>
+              <p style={{ marginBottom: '12px' }}>
+                This chart shows ocean conditions over the next 12 hours:
+              </p>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>💨 Wind Speed</strong> — Primary safety factor for water activities. Displayed in km/h (primary) and m/s (secondary).
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>☁️ Cloudiness</strong> — Affects light but rarely blocks activities (except snorkeling visibility).
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>🌧️ Rain</strong> — Heavy rain can affect visibility and comfort.
+              </div>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb', fontSize: '12px', color: '#6b7280' }}>
+                <strong>Vertical lines</strong> indicate high/low tides.
+              </div>
+            </>
+          }
+        />
+      </div>
       <div className={styles.chartContainer}>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart

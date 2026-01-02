@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import type { ActivityType, HourlyForecast } from '../types';
 import { getActivityStatusForHour } from '../utils/activityRules';
+import { InfoPopover } from './InfoPopover';
 import styles from './ActivityMiniForecast.module.css';
+import popoverStyles from './InfoPopover.module.css';
 
 interface ActivityMiniForecastProps {
   activityType: ActivityType;
@@ -51,7 +53,35 @@ export const ActivityMiniForecast = ({
 
   return (
     <div className={styles.container}>
-      <div className={styles.label}>Next 6 hours:</div>
+      <div className={styles.labelRow}>
+        <span className={styles.label}>Next 6 hours:</span>
+        <InfoPopover
+          title="Understanding Status Colors"
+          activityType={activityType}
+          content={
+            <>
+              <div className={popoverStyles.statusRow}>
+                <div className={`${popoverStyles.statusDot} ${popoverStyles.good}`} />
+                <div>
+                  <strong>Good</strong> — Safe and ideal conditions for this activity
+                </div>
+              </div>
+              <div className={popoverStyles.statusRow}>
+                <div className={`${popoverStyles.statusDot} ${popoverStyles.caution}`} />
+                <div>
+                  <strong>Caution</strong> — Acceptable but challenging, suitable for experienced users
+                </div>
+              </div>
+              <div className={popoverStyles.statusRow}>
+                <div className={`${popoverStyles.statusDot} ${popoverStyles.bad}`} />
+                <div>
+                  <strong>Poor</strong> — Not recommended due to unsafe or unfavorable conditions
+                </div>
+              </div>
+            </>
+          }
+        />
+      </div>
       <div className={styles.timeline}>
         {next6Hours.map((hour, index) => {
           const status = getActivityStatusForHour(hour, activityType);

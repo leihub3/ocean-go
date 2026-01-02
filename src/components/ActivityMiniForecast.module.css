@@ -4,11 +4,17 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
 .label {
   font-size: 11px;
   color: #6b7280;
   font-weight: 500;
-  margin-bottom: 8px;
 }
 
 .timeline {
