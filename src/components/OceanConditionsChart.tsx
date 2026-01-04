@@ -19,6 +19,15 @@ import styles from './OceanConditionsChart.module.css';
 interface OceanConditionsChartProps {
   hourlyForecast: HourlyForecast[];
   tides?: TideData[];
+  currentConditions?: {
+    windSpeed: number;
+    windDirection?: number;
+    cloudiness: number;
+    rain: number;
+    temperature?: number;
+    pressure?: number;
+    humidity?: number;
+  };
 }
 
 /**
@@ -159,15 +168,42 @@ function getWindArrowPath(degrees: number, size: number = 18): string {
 export const OceanConditionsChart = ({
   hourlyForecast,
   tides = [],
+  currentConditions,
 }: OceanConditionsChartProps) => {
+  // Always use current conditions for first hour if provided
+  const adjustedForecast = useMemo(() => {
+    if (!currentConditions || hourlyForecast.length === 0) {
+      return hourlyForecast.slice(0, 24);
+    }
+
+    const now = new Date();
+    
+    // Always replace first hour with current conditions to ensure consistency
+    const currentHour: HourlyForecast = {
+      time: now.toISOString(),
+      windSpeed: currentConditions.windSpeed,
+      windDirection: currentConditions.windDirection,
+      cloudiness: currentConditions.cloudiness,
+      rain: currentConditions.rain,
+      temperature: currentConditions.temperature,
+      pressure: currentConditions.pressure,
+      humidity: currentConditions.humidity,
+      // Preserve tideHeight from first forecast if available
+      tideHeight: hourlyForecast[0]?.tideHeight,
+    };
+    
+    // Take first 23 hours from forecast (since we're replacing the first with current)
+    return [currentHour, ...hourlyForecast.slice(1, 24)];
+  }, [hourlyForecast, currentConditions]);
+
   // Calculate max wind for cloudiness overlay scaling
   const maxWindKmhForScale = useMemo(() => {
-    const speeds = hourlyForecast.slice(0, 24).map(h => h.windSpeed * 3.6);
+    const speeds = adjustedForecast.map(h => h.windSpeed * 3.6);
     return Math.max(...speeds, 20); // Default to 20 if empty
-  }, [hourlyForecast]);
+  }, [adjustedForecast]);
 
   // Prepare data for chart (24 hours)
-  const forecast24Hours = hourlyForecast.slice(0, 24);
+  const forecast24Hours = adjustedForecast;
   const chartData = useMemo(() => {
     return forecast24Hours.map((hour, index) => {
       const time = new Date(hour.time);
@@ -202,8 +238,8 @@ export const OceanConditionsChart = ({
         windKmh,
         index, // For wind arrow positioning
       };
-    });
-  }, [hourlyForecast, tides, maxWindKmhForScale]);
+      });
+  }, [adjustedForecast, tides, maxWindKmhForScale]);
 
   // Calculate min/max tide height for Y-axis domain
   const tideDomain = useMemo(() => {
@@ -258,7 +294,7 @@ export const OceanConditionsChart = ({
       })
       .map(tide => {
         const tideTime = new Date(tide.time);
-        const chartIndex = hourlyForecast.findIndex(h => {
+        const chartIndex = adjustedForecast.findIndex(h => {
           const hTime = new Date(h.time);
           return Math.abs(hTime.getTime() - tideTime.getTime()) < 30 * 60 * 1000;
         });
@@ -270,7 +306,7 @@ export const OceanConditionsChart = ({
           index: chartIndex >= 0 ? chartIndex : null,
         };
       });
-  }, [tides, hourlyForecast]);
+  }, [tides, adjustedForecast]);
 
   // Calculate max wind for Y-axis
   const maxWindKmh = Math.max(...chartData.map(d => d.windKmh));

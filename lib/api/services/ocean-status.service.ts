@@ -126,9 +126,36 @@ export class OceanStatusService {
       });
     }
 
+    // If current weather has windSpeed = 0, use first hourly forecast as fallback
+    // This handles cases where the API returns 0 but hourly forecast has valid data
+    let currentWeather = weatherResult.data;
+    if (currentWeather.windSpeed === 0 && mergedHourlyForecast && mergedHourlyForecast.length > 0) {
+      const firstForecast = mergedHourlyForecast[0];
+      if (firstForecast && firstForecast.windSpeed > 0) {
+        // Use first forecast hour as current weather if it's within 1 hour
+        const now = new Date();
+        const firstForecastTime = new Date(firstForecast.time);
+        const timeDiff = Math.abs(now.getTime() - firstForecastTime.getTime());
+        const oneHour = 60 * 60 * 1000;
+        
+        if (timeDiff <= oneHour) {
+          currentWeather = {
+            ...currentWeather,
+            windSpeed: firstForecast.windSpeed,
+            windDirection: firstForecast.windDirection ?? currentWeather.windDirection,
+            cloudiness: firstForecast.cloudiness ?? currentWeather.cloudiness,
+            rain: firstForecast.rain ?? currentWeather.rain,
+            temperature: firstForecast.temperature ?? currentWeather.temperature,
+            pressure: firstForecast.pressure ?? currentWeather.pressure,
+            humidity: firstForecast.humidity ?? currentWeather.humidity,
+          };
+        }
+      }
+    }
+
     // Build conditions object
     const conditions: CurrentConditions = {
-      weather: weatherResult.data,
+      weather: currentWeather,
       currentTide,
       nextTide,
       hourlyForecast: mergedHourlyForecast,

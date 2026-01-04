@@ -251,6 +251,15 @@ function App() {
                       ...(data.conditions?.currentTide ? [data.conditions.currentTide] : []),
                       ...(data.conditions?.nextTide ? [data.conditions.nextTide] : []),
                     ]}
+                    currentConditions={data.conditions?.weather ? {
+                      windSpeed: data.conditions.weather.windSpeed,
+                      windDirection: data.conditions.weather.windDirection,
+                      cloudiness: data.conditions.weather.cloudiness,
+                      rain: data.conditions.weather.rain,
+                      temperature: data.conditions.weather.temperature,
+                      pressure: data.conditions.weather.pressure,
+                      humidity: data.conditions.weather.humidity,
+                    } : undefined}
                   />
                 )}
               </>
