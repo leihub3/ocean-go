@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ComposedChart,
   Line,
@@ -165,44 +165,82 @@ function getWindArrowPath(degrees: number, size: number = 18): string {
   return `M ${x1} ${y1} L ${x2} ${y2} L ${hx1} ${hy1} L ${x2} ${y2} L ${hx2} ${hy2} Z`;
 }
 
+/**
+ * Get tab labels for the 3-day forecast tabs
+ */
+function getTabLabels(): string[] {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfter = new Date(today);
+  dayAfter.setDate(dayAfter.getDate() + 2);
+  
+  return [
+    'Hoy',
+    tomorrow.toLocaleDateString('es', { weekday: 'short', day: 'numeric' }),
+    dayAfter.toLocaleDateString('es', { weekday: 'short', day: 'numeric' })
+  ];
+}
+
 export const OceanConditionsChart = ({
   hourlyForecast,
   tides = [],
   currentConditions,
 }: OceanConditionsChartProps) => {
-  // Always use current conditions for first hour if provided
-  const adjustedForecast = useMemo(() => {
-    if (!currentConditions || hourlyForecast.length === 0) {
-      return hourlyForecast.slice(0, 24);
+  const [activeTab, setActiveTab] = useState(0);
+  
+  // Split forecast into 3 chunks of 24 hours each
+  const forecastChunks = useMemo(() => {
+    const chunks: HourlyForecast[][] = [];
+    for (let i = 0; i < 3; i++) {
+      chunks.push(hourlyForecast.slice(i * 24, (i + 1) * 24));
     }
-
-    const now = new Date();
+    return chunks;
+  }, [hourlyForecast]);
+  
+  // Get the active tab's forecast chunk
+  const activeForecast = forecastChunks[activeTab] || [];
+  
+  // Adjust forecast for active tab: only first tab uses current conditions
+  const adjustedForecast = useMemo(() => {
+    if (activeForecast.length === 0) {
+      return [];
+    }
     
-    // Always replace first hour with current conditions to ensure consistency
-    const currentHour: HourlyForecast = {
-      time: now.toISOString(),
-      windSpeed: currentConditions.windSpeed,
-      windDirection: currentConditions.windDirection,
-      cloudiness: currentConditions.cloudiness,
-      rain: currentConditions.rain,
-      temperature: currentConditions.temperature,
-      pressure: currentConditions.pressure,
-      humidity: currentConditions.humidity,
-      // Preserve tideHeight from first forecast if available
-      tideHeight: hourlyForecast[0]?.tideHeight,
-    };
+    // Only first tab (index 0) should use current conditions for first hour
+    if (activeTab === 0 && currentConditions) {
+      const now = new Date();
+      
+      // Always replace first hour with current conditions to ensure consistency
+      const currentHour: HourlyForecast = {
+        time: now.toISOString(),
+        windSpeed: currentConditions.windSpeed,
+        windDirection: currentConditions.windDirection,
+        cloudiness: currentConditions.cloudiness,
+        rain: currentConditions.rain,
+        temperature: currentConditions.temperature,
+        pressure: currentConditions.pressure,
+        humidity: currentConditions.humidity,
+        // Preserve tideHeight from first forecast if available
+        tideHeight: activeForecast[0]?.tideHeight,
+      };
+      
+      // Take first 23 hours from forecast (since we're replacing the first with current)
+      return [currentHour, ...activeForecast.slice(1)];
+    }
     
-    // Take first 23 hours from forecast (since we're replacing the first with current)
-    return [currentHour, ...hourlyForecast.slice(1, 24)];
-  }, [hourlyForecast, currentConditions]);
+    // Other tabs use forecast data as-is
+    return activeForecast;
+  }, [activeForecast, activeTab, currentConditions]);
 
   // Calculate max wind for cloudiness overlay scaling
   const maxWindKmhForScale = useMemo(() => {
+    if (adjustedForecast.length === 0) return 20;
     const speeds = adjustedForecast.map(h => h.windSpeed * 3.6);
     return Math.max(...speeds, 20); // Default to 20 if empty
   }, [adjustedForecast]);
 
-  // Prepare data for chart (24 hours)
+  // Prepare data for chart (24 hours from active tab)
   const forecast24Hours = adjustedForecast;
   const chartData = useMemo(() => {
     return forecast24Hours.map((hour, index) => {
@@ -281,16 +319,21 @@ export const OceanConditionsChart = ({
     return [Math.round(minPressure - padding), Math.round(maxPressure + padding)];
   }, [chartData]);
 
-  // Get tide times for reference lines
+  // Get tide times for reference lines (within active tab's 24-hour window)
   const tideLines = useMemo(() => {
-    if (!tides || tides.length === 0) return [];
+    if (!tides || tides.length === 0 || adjustedForecast.length === 0) return [];
     
-    const now = new Date();
+    const firstHourTime = new Date(adjustedForecast[0]!.time);
+    const lastHourTime = adjustedForecast[adjustedForecast.length - 1] 
+      ? new Date(adjustedForecast[adjustedForecast.length - 1]!.time)
+      : new Date(firstHourTime.getTime() + 24 * 60 * 60 * 1000);
+    
     return tides
       .filter((tide): tide is NonNullable<typeof tide> => tide !== null)
       .filter(tide => {
         const tideTime = new Date(tide.time);
-        return tideTime > now && tideTime <= new Date(now.getTime() + 12 * 60 * 60 * 1000);
+        // Filter tides within the active tab's time window
+        return tideTime >= firstHourTime && tideTime <= lastHourTime;
       })
       .map(tide => {
         const tideTime = new Date(tide.time);
@@ -433,7 +476,7 @@ export const OceanConditionsChart = ({
   return (
     <div className={styles.container}>
       <div className={styles.titleRow}>
-        <h3 className={styles.title}>24-Hour Forecast</h3>
+        <h3 className={styles.title}>72-Hour Forecast</h3>
         <InfoPopover
           title="Understanding the Forecast"
           content={
@@ -471,6 +514,21 @@ export const OceanConditionsChart = ({
             </>
           }
         />
+      </div>
+
+      {/* Tab Navigation */}
+      <div className={styles.tabsContainer}>
+        {getTabLabels().map((label, index) => (
+          <button
+            key={index}
+            className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab(index)}
+            aria-selected={activeTab === index}
+            role="tab"
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className={styles.chartsStack}>

@@ -51,12 +51,12 @@ export class TidesProvider {
 
   /**
    * Fetch current and upcoming tides for given coordinates
-   * Returns next 48 hours of tide predictions
+   * Returns next 72 hours of tide predictions
    */
   async fetchTides(
     latitude: number,
     longitude: number,
-    days: number = 2
+    days: number = 3
   ): Promise<TidesProviderResult> {
     // If no API key, return mock data
     if (!this.apiKey || this.apiKey.trim() === '') {
@@ -257,8 +257,8 @@ export class TidesProvider {
     let currentTime = new Date(now);
     let isHigh = startIsHigh;
 
-    // Generate 48 hours of tides (approximately 16 tide changes)
-    for (let i = 0; i < 16; i++) {
+    // Generate 72 hours of tides (approximately 24 tide changes)
+    for (let i = 0; i < 24; i++) {
       // Tides alternate roughly every 6 hours
       const hoursToAdd = 5.5 + Math.random() * 1; // 5.5-6.5 hours
       currentTime = new Date(currentTime.getTime() + hoursToAdd * 60 * 60 * 1000);
@@ -283,7 +283,7 @@ export class TidesProvider {
     const startHeight = startIsHigh ? 0.8 : 0.3;
     let mockTime = new Date(now);
     
-    for (let hour = 0; hour < 48; hour++) {
+    for (let hour = 0; hour < 72; hour++) {
       // Simple sinusoidal pattern: 6-hour cycle
       const cyclePosition = (hour % 12) / 12; // 0 to 1 over 12 hours (2 cycles per day)
       const sineValue = Math.sin(cyclePosition * Math.PI * 2);

@@ -103,7 +103,7 @@ export class WeatherProvider {
       };
 
       // Normalize hourly forecast if available
-      const hourly: HourlyForecast[] | undefined = rawData.hourly?.slice(0, 24).map(hour => ({
+      const hourly: HourlyForecast[] | undefined = rawData.hourly?.slice(0, 72).map(hour => ({
         time: new Date(hour.dt * 1000).toISOString(),
         windSpeed: hour.wind_speed,
         windDirection: hour.wind_deg,
@@ -156,7 +156,7 @@ export class WeatherProvider {
     // Typical Caribbean wind direction: Trade winds from E/SE (90-135°)
     const baseWindDir = 110 + Math.random() * 25; // 110-135° (E-SE)
 
-    const mockHourly: HourlyForecast[] = Array.from({ length: 24 }, (_, i) => {
+    const mockHourly: HourlyForecast[] = Array.from({ length: 72 }, (_, i) => {
       const forecastHour = (hour + i) % 24;
       // Hourly variation: slightly different from current but similar
       const hourWindSpeed = baseWindSpeed + (Math.random() * 2 - 1) * 0.5; // ±0.5 m/s variation

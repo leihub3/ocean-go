@@ -45,7 +45,7 @@ export class OceanStatusService {
     // Fetch data from providers in parallel
     const [weatherResult, tidesResult] = await Promise.all([
       this.weatherProvider.fetchWeather(coordinates.latitude, coordinates.longitude),
-      this.tidesProvider.fetchTides(coordinates.latitude, coordinates.longitude, 2),
+      this.tidesProvider.fetchTides(coordinates.latitude, coordinates.longitude, 3),
     ]);
 
     // Collect any provider errors
