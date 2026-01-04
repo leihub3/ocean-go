@@ -59,8 +59,8 @@ export class TidesProvider {
     days: number = 2
   ): Promise<TidesProviderResult> {
     // If no API key, return mock data
-    if (!this.apiKey) {
-      console.warn('WorldTides API key not found. Using mock data.');
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      console.warn('[TidesProvider] API key not found. Using mock data.');
       return this.getMockTides();
     }
 

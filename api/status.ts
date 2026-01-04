@@ -133,11 +133,29 @@ export default async function handler(request: Request): Promise<Response> {
     let status;
     try {
       const service = new OceanStatusService();
+      console.log(`[${regionId}] Fetching ocean status...`);
+      const startTime = Date.now();
       status = await service.getOceanStatus(regionConfig);
+      const duration = Date.now() - startTime;
+      console.log(`[${regionId}] Ocean status fetched in ${duration}ms`);
     } catch (error) {
-      console.error('Service error:', error);
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-      throw error; // Re-throw to be caught by outer catch
+      console.error(`[${regionId}] Service error:`, error);
+      console.error(`[${regionId}] Error stack:`, error instanceof Error ? error.stack : 'No stack');
+      // Return error response instead of throwing to provide better error details
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to fetch ocean status',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          details: process.env.NODE_ENV !== 'production' && error instanceof Error ? error.stack : undefined,
+        }),
+        {
+          status: 500,
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
     }
 
     // Cache the result
@@ -152,8 +170,9 @@ export default async function handler(request: Request): Promise<Response> {
       },
     });
   } catch (error) {
-    console.error('Handler error:', error);
-    console.error('Error details:', {
+    const regionId = new URL(request.url).searchParams.get('region') || 'unknown';
+    console.error(`[${regionId}] Handler error:`, error);
+    console.error(`[${regionId}] Error details:`, {
       message: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : 'No stack',
       name: error instanceof Error ? error.name : 'Unknown',

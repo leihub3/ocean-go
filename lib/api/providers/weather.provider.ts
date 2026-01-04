@@ -53,8 +53,8 @@ export class WeatherProvider {
     longitude: number
   ): Promise<WeatherProviderResult> {
     // If no API key, return mock data
-    if (!this.apiKey) {
-      console.warn('OpenWeather API key not found. Using mock data.');
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      console.warn('[WeatherProvider] API key not found. Using mock data.');
       return this.getMockWeather();
     }
 
