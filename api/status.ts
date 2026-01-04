@@ -79,8 +79,25 @@ function getRegionConfig(regionId: string) {
 
 /**
  * Vercel serverless function handler
+ * Supports both Node.js and Edge runtime formats
  */
-export default async function handler(request: Request): Promise<Response> {
+export default async function handler(
+  request: Request | { url: string; headers: Headers | Record<string, string | string[]> },
+  context?: { waitUntil?: (promise: Promise<any>) => void }
+): Promise<Response> {
+  // Normalize request to handle both formats
+  let requestUrl: string;
+  let requestHeaders: Headers | Record<string, string | string[]>;
+  
+  if (request instanceof Request) {
+    // Edge runtime format
+    requestUrl = request.url;
+    requestHeaders = request.headers;
+  } else {
+    // Node.js runtime format
+    requestUrl = request.url;
+    requestHeaders = request.headers;
+  }
   let regionId: string | null = null;
   
   try {
@@ -88,14 +105,14 @@ export default async function handler(request: Request): Promise<Response> {
     // Handle both absolute URLs and relative paths (Vercel edge runtime)
     let url: URL;
     try {
-      url = new URL(request.url);
+      url = new URL(requestUrl);
     } catch (urlError) {
       // If request.url is relative, construct absolute URL
       // Vercel provides request headers with host information
       // Handle both Headers object and plain object
-      const headers = request.headers || {};
+      const headers = requestHeaders || {};
       const getHeader = (name: string): string | null => {
-        if (typeof headers.get === 'function') {
+        if (headers instanceof Headers) {
           return headers.get(name);
         }
         // Plain object access
@@ -110,7 +127,7 @@ export default async function handler(request: Request): Promise<Response> {
       
       const host = getHeader('host') || getHeader('x-forwarded-host') || 'localhost';
       const protocol = getHeader('x-forwarded-proto') || 'https';
-      url = new URL(request.url, `${protocol}://${host}`);
+      url = new URL(requestUrl, `${protocol}://${host}`);
     }
     regionId = url.searchParams.get('region');
 
@@ -199,7 +216,7 @@ export default async function handler(request: Request): Promise<Response> {
     const jsonDuration = Date.now() - jsonStart;
     console.log(`[${regionId}] JSON serialization took ${jsonDuration}ms`);
 
-    return new Response(jsonResponse, {
+    const response = new Response(jsonResponse, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
@@ -207,18 +224,21 @@ export default async function handler(request: Request): Promise<Response> {
         'Access-Control-Allow-Origin': '*',
       },
     });
+    
+    console.log(`[${regionId}] Returning response...`);
+    return response;
   } catch (error) {
     // Safely extract regionId from request URL if not already set
     if (!regionId) {
       try {
         let url: URL;
         try {
-          url = new URL(request.url);
+          url = new URL(requestUrl);
         } catch {
           // Handle both Headers object and plain object
-          const headers = request.headers || {};
+          const headers = requestHeaders || {};
           const getHeader = (name: string): string | null => {
-            if (typeof headers.get === 'function') {
+            if (headers instanceof Headers) {
               return headers.get(name);
             }
             // Plain object access
@@ -233,7 +253,7 @@ export default async function handler(request: Request): Promise<Response> {
           
           const host = getHeader('host') || getHeader('x-forwarded-host') || 'localhost';
           const protocol = getHeader('x-forwarded-proto') || 'https';
-          url = new URL(request.url, `${protocol}://${host}`);
+          url = new URL(requestUrl, `${protocol}://${host}`);
         }
         regionId = url.searchParams.get('region');
       } catch {

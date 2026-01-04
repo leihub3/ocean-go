@@ -1,7 +1,8 @@
 {
   "functions": {
     "api/status.ts": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "runtime": "nodejs20.x"
     }
   },
   "env": {
