@@ -198,11 +198,15 @@
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 16px;
   background: #f9fafb;
   border-radius: 12px;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scroll-padding: 16px;
 }
 
 .forecastBar {
@@ -210,8 +214,34 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  min-width: 40px;
-  flex: 1;
+  min-width: 50px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+
+/* Mobile: mostrar 6 horas visibles con scroll horizontal */
+@media (max-width: 640px) {
+  .forecastBar {
+    min-width: calc((100% - 32px - (5 * 8px)) / 6);
+    max-width: calc((100% - 32px - (5 * 8px)) / 6);
+  }
+  
+  .forecastChart {
+    scroll-snap-type: x proximity;
+  }
+}
+
+/* Desktop: mantener comportamiento original */
+@media (min-width: 641px) {
+  .forecastChart {
+    justify-content: space-between;
+  }
+  
+  .forecastBar {
+    flex: 1;
+    min-width: 40px;
+    max-width: none;
+  }
 }
 
 .forecastTime {

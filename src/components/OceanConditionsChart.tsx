@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ComposedChart,
   Line,
@@ -171,6 +171,8 @@ export const OceanConditionsChart = ({
   currentConditions,
 }: OceanConditionsChartProps) => {
   const [activeTab, setActiveTab] = useState(0);
+  const chartWrapperRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState<number | '100%'>('100%');
   
   // Find the starting index: the first forecast hour that is >= current time
   // This ensures "Hoy" tab shows from now, not from the first forecast entry
@@ -220,10 +222,15 @@ export const OceanConditionsChart = ({
       const chunkStart = startIndex + (i * 24);
       const chunkEnd = Math.min(chunkStart + 24, maxIndex);
       
-      // Only create chunk if start is within bounds
-      if (chunkStart < maxIndex) {
+      // Only create chunk if start is within bounds and there's at least some data
+      if (chunkStart < maxIndex && chunkEnd > chunkStart) {
         const chunk = hourlyForecast.slice(chunkStart, chunkEnd);
-        chunks.push(chunk);
+        // Only add chunk if it has at least some data
+        if (chunk.length > 0) {
+          chunks.push(chunk);
+        } else {
+          chunks.push([]);
+        }
       } else {
         // No data available for this period
         chunks.push([]);
@@ -231,6 +238,16 @@ export const OceanConditionsChart = ({
     }
     return chunks;
   }, [hourlyForecast, startIndex]);
+  
+  // Ensure activeTab points to a tab with data
+  useEffect(() => {
+    if (forecastChunks[activeTab]?.length === 0) {
+      const firstTabWithData = forecastChunks.findIndex(chunk => chunk.length > 0);
+      if (firstTabWithData >= 0) {
+        setActiveTab(firstTabWithData);
+      }
+    }
+  }, [forecastChunks, activeTab]);
   
   // Get the active tab's forecast chunk
   const activeForecast = forecastChunks[activeTab] || [];
@@ -412,10 +429,29 @@ export const OceanConditionsChart = ({
     return lines;
   }, [chartData]);
 
-  // Get tab labels based on 24-hour periods
+  // Get tab labels - always show 3 tabs, but some may be empty
   const tabLabels = useMemo(() => {
     return ['Próximas 24hs', '48hs', '72hs'];
   }, []);
+
+  // Calculate chart width for mobile scroll (show 6 hours initially)
+  useEffect(() => {
+    const updateChartWidth = () => {
+      if (window.innerWidth <= 640 && chartWrapperRef.current && chartData.length > 0) {
+        const containerWidth = chartWrapperRef.current.clientWidth - 32;
+        const hoursToShow = 6;
+        const totalHours = chartData.length;
+        const calculatedWidth = Math.max(containerWidth, (containerWidth / hoursToShow) * totalHours);
+        setChartWidth(calculatedWidth);
+      } else {
+        setChartWidth('100%');
+      }
+    };
+    
+    updateChartWidth();
+    window.addEventListener('resize', updateChartWidth);
+    return () => window.removeEventListener('resize', updateChartWidth);
+  }, [chartData.length]);
 
   // Show empty state if no data for active tab
   if (chartData.length === 0) {
@@ -425,17 +461,23 @@ export const OceanConditionsChart = ({
           <h3 className={styles.title}>72-Hour Forecast</h3>
         </div>
         <div className={styles.tabsContainer}>
-          {tabLabels.map((label, index) => (
-            <button
-              key={index}
-              className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
-              onClick={() => setActiveTab(index)}
-              aria-selected={activeTab === index}
-              role="tab"
-            >
-              {label}
-            </button>
-          ))}
+          {tabLabels.map((label, index) => {
+            // Only show tab if it has data
+            const hasData = forecastChunks[index] && forecastChunks[index]!.length > 0;
+            if (!hasData) return null;
+            
+            return (
+              <button
+                key={index}
+                className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
+                onClick={() => setActiveTab(index)}
+                aria-selected={activeTab === index}
+                role="tab"
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
         <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280' }}>
           No hay datos disponibles para este período.
@@ -581,19 +623,25 @@ export const OceanConditionsChart = ({
         />
       </div>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation - Only show tabs with data */}
       <div className={styles.tabsContainer}>
-        {tabLabels.map((label, index) => (
-          <button
-            key={index}
-            className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab(index)}
-            aria-selected={activeTab === index}
-            role="tab"
-          >
-            {label}
-          </button>
-        ))}
+        {tabLabels.map((label, index) => {
+          // Only show tab if it has data
+          const hasData = forecastChunks[index] && forecastChunks[index]!.length > 0;
+          if (!hasData) return null;
+          
+          return (
+            <button
+              key={index}
+              className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab(index)}
+              aria-selected={activeTab === index}
+              role="tab"
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       <div className={styles.chartsStack}>
@@ -607,8 +655,9 @@ export const OceanConditionsChart = ({
             )}
           </div>
           
-          <div className={styles.chartWrapper}>
-            <ResponsiveContainer width="100%" height={280} className={styles.oceanChart}>
+          <div className={styles.chartWrapper} ref={chartWrapperRef}>
+            <div className={styles.chartScrollContainer}>
+              <ResponsiveContainer width={chartWidth} height={280} className={styles.oceanChart}>
               <ComposedChart
                 data={chartData}
                 margin={{ top: 20, right: 0, left: 0, bottom: 25 }}
@@ -780,6 +829,7 @@ export const OceanConditionsChart = ({
                 />
               </ComposedChart>
             </ResponsiveContainer>
+            </div>
             
             {/* Chart Legend - below chart */}
             <div className={styles.chartLegend}>
@@ -816,7 +866,8 @@ export const OceanConditionsChart = ({
             </div>
             
             <div className={styles.chartWrapper}>
-              <ResponsiveContainer width="100%" height={280} className={styles.atmosphericChart}>
+              <div className={styles.chartScrollContainer}>
+                <ResponsiveContainer width={chartWidth} height={280} className={styles.atmosphericChart}>
                 <ComposedChart
                   data={chartData}
                   margin={{ top: 20, right: 0, left: 0, bottom: 25 }}
@@ -971,6 +1022,7 @@ export const OceanConditionsChart = ({
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
+              </div>
               
               {/* Chart Legend - below chart */}
               <div className={styles.chartLegend}>
