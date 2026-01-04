@@ -3,6 +3,7 @@ import {
   ComposedChart,
   Line,
   Area,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -83,30 +84,76 @@ function interpolateTideHeight(
 }
 
 /**
- * Get wind direction arrow SVG path
+ * Format date like WindGuru: "L 6.1." (Day abbreviation + day.month)
  */
-function getWindArrowPath(degrees: number, size: number = 12): string {
+function formatDayLabel(date: Date): string {
+  const dayAbbr = ['D', 'L', 'M', 'X', 'J', 'V', 'S']; // Domingo, Lunes, Martes, Miércoles, Jueves, Viernes, Sábado
+  const dayOfWeek = date.getDay();
+  const day = date.getDate();
+  const month = date.getMonth() + 1; // getMonth() returns 0-11
+  return `${dayAbbr[dayOfWeek]} ${day}.${month}.`;
+}
+
+/**
+ * Format time for X-axis: show day when it changes, otherwise just hour
+ */
+function formatXAxisLabel(time: string, index: number, allTimes: string[]): string {
+  const date = new Date(time);
+  const hour = date.getHours();
+  
+  // Always show hour
+  const hourLabel = `${hour}h`;
+  
+  // Show day label at midnight (0h) or at the first entry
+  if (hour === 0 || index === 0) {
+    const dayLabel = formatDayLabel(date);
+    return `${dayLabel} ${hourLabel}`;
+  }
+  
+  // Check if day changed from previous entry
+  if (index > 0) {
+    const prevTime = allTimes[index - 1];
+    if (prevTime) {
+      const prevDate = new Date(prevTime);
+      const prevDay = prevDate.getDate();
+      const currentDay = date.getDate();
+      
+      if (prevDay !== currentDay) {
+        const dayLabel = formatDayLabel(date);
+        return `${dayLabel} ${hourLabel}`;
+      }
+    }
+  }
+  
+  return hourLabel;
+}
+
+/**
+ * Get wind direction arrow SVG path - WindGuru style (thick, bold arrows)
+ */
+function getWindArrowPath(degrees: number, size: number = 18): string {
   // Convert meteorological direction (0° = North, clockwise) to screen coordinates
   // Screen: 0° = right (→), 90° = bottom (↓), 180° = left (←), 270° = top (↑)
   // Met: 0° = top (↑), 90° = right (→), 180° = bottom (↓), 270° = left (←)
   const screenAngle = (degrees - 90) * (Math.PI / 180);
-  const arrowLength = size * 0.8;
-  const arrowHeadSize = size * 0.3;
+  const arrowLength = size * 0.85; // Longer arrow shaft
+  const arrowHeadSize = size * 0.4; // Larger arrowhead
   
   const x1 = 0;
   const y1 = 0;
   const x2 = Math.cos(screenAngle) * arrowLength;
   const y2 = Math.sin(screenAngle) * arrowLength;
   
-  // Arrow head
-  const headAngle1 = screenAngle + Math.PI * 0.8;
-  const headAngle2 = screenAngle + Math.PI * 1.2;
+  // Arrow head - wider angle for more visibility
+  const headAngle1 = screenAngle + Math.PI * 0.85;
+  const headAngle2 = screenAngle + Math.PI * 1.15;
   const hx1 = x2 + Math.cos(headAngle1) * arrowHeadSize;
   const hy1 = y2 + Math.sin(headAngle1) * arrowHeadSize;
   const hx2 = x2 + Math.cos(headAngle2) * arrowHeadSize;
   const hy2 = y2 + Math.sin(headAngle2) * arrowHeadSize;
   
-  return `M ${x1} ${y1} L ${x2} ${y2} L ${hx1} ${hy1} M ${x2} ${y2} L ${hx2} ${hy2}`;
+  // Create a filled arrow (more WindGuru-like)
+  return `M ${x1} ${y1} L ${x2} ${y2} L ${hx1} ${hy1} L ${x2} ${y2} L ${hx2} ${hy2} Z`;
 }
 
 export const OceanConditionsChart = ({
@@ -115,13 +162,14 @@ export const OceanConditionsChart = ({
 }: OceanConditionsChartProps) => {
   // Calculate max wind for cloudiness overlay scaling
   const maxWindKmhForScale = useMemo(() => {
-    const speeds = hourlyForecast.slice(0, 12).map(h => h.windSpeed * 3.6);
+    const speeds = hourlyForecast.slice(0, 24).map(h => h.windSpeed * 3.6);
     return Math.max(...speeds, 20); // Default to 20 if empty
   }, [hourlyForecast]);
 
-  // Prepare data for chart
+  // Prepare data for chart (24 hours)
+  const forecast24Hours = hourlyForecast.slice(0, 24);
   const chartData = useMemo(() => {
-    return hourlyForecast.slice(0, 12).map((hour, index) => {
+    return forecast24Hours.map((hour, index) => {
       const time = new Date(hour.time);
       const tideHeight = hour.tideHeight !== undefined 
         ? hour.tideHeight 
@@ -130,15 +178,22 @@ export const OceanConditionsChart = ({
       const cloudiness = Math.round(hour.cloudiness);
       // Normalize cloudiness to wind scale for overlay (0-100% becomes 0-maxWind scale)
       const cloudinessScaled = (cloudiness / 100) * maxWindKmhForScale;
+      // Scale rain to wind axis (max 10mm = maxWind scale, for visibility)
+      const rain = Number(hour.rain.toFixed(2));
+      const rainScaled = rain > 0 ? (rain / 10) * maxWindKmhForScale : 0; // Scale 0-10mm to wind axis
       
       return {
         time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timeFull: time.toISOString(), // For day calculations
+        timeLabel: formatXAxisLabel(hour.time, index, forecast24Hours.map(h => h.time)),
         hour: time.getHours(),
+        day: time.getDate(), // For detecting day changes
         windSpeed: Number(hour.windSpeed.toFixed(1)),
         windDirection: hour.windDirection,
         cloudiness,
         cloudinessScaled,
-        rain: Number(hour.rain.toFixed(2)),
+        rain,
+        rainScaled,
         tideHeight: tideHeight !== null && tideHeight !== undefined ? tideHeight : null,
         temperature: hour.temperature !== undefined ? Number(hour.temperature.toFixed(1)) : null,
         pressure: hour.pressure !== undefined ? Number(hour.pressure) : null,
@@ -219,6 +274,27 @@ export const OceanConditionsChart = ({
   // Calculate max wind for Y-axis
   const maxWindKmh = Math.max(...chartData.map(d => d.windKmh));
 
+  // Calculate midnight lines for day separation
+  const midnightLines = useMemo(() => {
+    const lines: Array<{ time: string; day: string; index: number }> = [];
+    
+    chartData.forEach((data, index) => {
+      if (data.hour === 0 && index > 0) {
+        // Check if it's actually a new day
+        const prevData = chartData[index - 1];
+        if (prevData && prevData.day !== data.day) {
+          lines.push({
+            time: data.time,
+            day: formatDayLabel(new Date(data.timeFull)),
+            index,
+          });
+        }
+      }
+    });
+    
+    return lines;
+  }, [chartData]);
+
   if (chartData.length === 0) {
     return null;
   }
@@ -230,7 +306,7 @@ export const OceanConditionsChart = ({
   const hasWindDirection = chartData.some(d => d.windDirection !== undefined);
   const hasTide = chartData.some(d => d.tideHeight !== null);
 
-  // Custom dot component for wind direction arrows
+  // Custom dot component for wind direction arrows - WindGuru style
   const WindDirectionDot = (props: any) => {
     const { cx, cy, payload } = props;
     if (!payload.windDirection || cx === undefined || cy === undefined) return null;
@@ -238,12 +314,12 @@ export const OceanConditionsChart = ({
     // cy is already the correct Y position for the wind speed value
     return (
       <g transform={`translate(${cx},${cy})`}>
-        <circle r="8" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
+        {/* Bold black arrow like WindGuru - no white circle */}
         <path
-          d={getWindArrowPath(payload.windDirection, 10)}
-          stroke="#0ea5e9"
-          strokeWidth={2.5}
-          fill="none"
+          d={getWindArrowPath(payload.windDirection, 16)}
+          stroke="#1f2937"
+          strokeWidth={3}
+          fill="#1f2937"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -315,7 +391,7 @@ export const OceanConditionsChart = ({
   return (
     <div className={styles.container}>
       <div className={styles.titleRow}>
-        <h3 className={styles.title}>12-Hour Forecast</h3>
+        <h3 className={styles.title}>24-Hour Forecast</h3>
         <InfoPopover
           title="Understanding the Forecast"
           content={
@@ -370,14 +446,30 @@ export const OceanConditionsChart = ({
             <ResponsiveContainer width="100%" height={280} className={styles.oceanChart}>
               <ComposedChart
                 data={chartData}
-                margin={{ top: 20, right: 10, left: 5, bottom: 25 }}
+                margin={{ top: 20, right: 0, left: 0, bottom: 25 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                {/* Midnight lines for day separation */}
+                {midnightLines.map((midnight, idx) => (
+                  <ReferenceLine
+                    key={`midnight-${idx}`}
+                    x={midnight.time}
+                    stroke="#9ca3af"
+                    strokeDasharray="2 2"
+                    strokeWidth={1}
+                    strokeOpacity={0.5}
+                  />
+                ))}
                 <XAxis 
                   dataKey="time" 
                   stroke="#9ca3af"
                   fontSize={11}
                   tick={{ fill: '#6b7280' }}
+                  interval={2} // Show every 3 hours (0, 3, 6, 9, 12, 15, 18, 21)
+                  tickFormatter={(value, index) => {
+                    const dataPoint = chartData[index];
+                    return dataPoint?.timeLabel || value;
+                  }}
                 />
                 {/* Wind Speed Y-Axis (left) */}
                 <YAxis 
@@ -392,6 +484,7 @@ export const OceanConditionsChart = ({
                   fontSize={11}
                   tick={{ fill: '#0ea5e9' }}
                   domain={[0, 'dataMax + 2']}
+                  width={40}
                 />
                 {/* Tide Height Y-Axis (right) */}
                 {hasTide && (
@@ -408,6 +501,7 @@ export const OceanConditionsChart = ({
                     fontSize={11}
                     tick={{ fill: '#10b981' }}
                     domain={tideDomain}
+                    width={40}
                   />
                 )}
                 {/* Cloudiness - shown as overlay line, no separate Y-axis when tide exists */}
@@ -431,7 +525,7 @@ export const OceanConditionsChart = ({
                   dot={false}
                   activeDot={{ r: 5, fill: '#0ea5e9' }}
                 />
-                {/* Wind Direction Arrows - shown every 2 hours to avoid clutter */}
+                {/* Wind Direction Arrows - shown every 3 hours */}
                 {hasWindDirection && (
                   <Line
                     yAxisId="wind"
@@ -439,9 +533,9 @@ export const OceanConditionsChart = ({
                     dataKey="windKmh"
                     stroke="none"
                     dot={(props: any) => {
-                      // Only show arrow every 2 hours (index 0, 2, 4, 6, 8, 10)
+                      // Show arrow every 3 hours (index 0, 3, 6, 9, 12, 15, 18, 21)
                       const index = props.payload?.index;
-                      if (index !== undefined && index % 2 === 0) {
+                      if (index !== undefined && index % 3 === 0) {
                         return <WindDirectionDot {...props} />;
                       }
                       return null;
@@ -492,6 +586,18 @@ export const OceanConditionsChart = ({
                   </>
                 )}
                 
+                {/* Rain - vertical bars */}
+                {hasRain && (
+                  <Bar
+                    yAxisId="wind"
+                    dataKey="rainScaled"
+                    fill="#3b82f6"
+                    fillOpacity={0.4}
+                    radius={[2, 2, 0, 0]}
+                    name="rain"
+                  />
+                )}
+                
                 {/* Cloudiness - overlay line (no Y-axis, shown as percentage overlay) */}
                 <Line
                   yAxisId="wind"
@@ -508,10 +614,29 @@ export const OceanConditionsChart = ({
               </ComposedChart>
             </ResponsiveContainer>
             
-            {/* Cloudiness label - shown as overlay percentage */}
-            {hasTide && (
-              <div className={styles.cloudsAxisLabel}>☁️ Clouds (%) - dashed line</div>
-            )}
+            {/* Chart Legend - below chart */}
+            <div className={styles.chartLegend}>
+              <span className={styles.legendItem}>
+                <span className={styles.legendColor} style={{ background: '#0ea5e9' }}></span>
+                Wind Speed (km/h)
+              </span>
+              {hasTide && (
+                <span className={styles.legendItem}>
+                  <span className={styles.legendColor} style={{ background: '#10b981' }}></span>
+                  Tide Height (m)
+                </span>
+              )}
+              <span className={styles.legendItem}>
+                <span className={styles.legendLine} style={{ borderColor: '#6b7280' }}></span>
+                Clouds (%) - dashed
+              </span>
+              {hasRain && (
+                <span className={styles.legendItem}>
+                  <span className={styles.legendColor} style={{ background: '#3b82f6' }}></span>
+                  Rain (mm) - bars
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -527,14 +652,30 @@ export const OceanConditionsChart = ({
               <ResponsiveContainer width="100%" height={280} className={styles.atmosphericChart}>
                 <ComposedChart
                   data={chartData}
-                  margin={{ top: 20, right: 10, left: 5, bottom: 25 }}
+                  margin={{ top: 20, right: 0, left: 0, bottom: 25 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  {/* Midnight lines for day separation */}
+                  {midnightLines.map((midnight, idx) => (
+                    <ReferenceLine
+                      key={`midnight-atm-${idx}`}
+                      x={midnight.time}
+                      stroke="#9ca3af"
+                      strokeDasharray="2 2"
+                      strokeWidth={1}
+                      strokeOpacity={0.5}
+                    />
+                  ))}
                   <XAxis 
                     dataKey="time" 
                     stroke="#9ca3af"
                     fontSize={11}
                     tick={{ fill: '#6b7280' }}
+                    interval={2} // Show every 3 hours (0, 3, 6, 9, 12, 15, 18, 21)
+                    tickFormatter={(value, index) => {
+                      const dataPoint = chartData[index];
+                      return dataPoint?.timeLabel || value;
+                    }}
                   />
                   {/* Temperature Y-Axis (left) */}
                   {hasTemp && (
@@ -558,7 +699,7 @@ export const OceanConditionsChart = ({
                       yAxisId="pressure"
                       orientation="right"
                       label={{ 
-                        value: 'Pressure (hPa)', 
+                        value: hasHumidity ? 'Pressure (hPa) & Humidity (%)' : 'Pressure (hPa)', 
                         angle: 90, 
                         position: 'insideRight',
                         style: { fill: '#3b82f6', fontSize: 11 }
@@ -567,6 +708,7 @@ export const OceanConditionsChart = ({
                       fontSize={11}
                       tick={{ fill: '#3b82f6' }}
                       domain={pressureDomain}
+                      width={40}
                     />
                   )}
                   {/* Humidity - will use same scale as pressure or separate */}
@@ -584,6 +726,7 @@ export const OceanConditionsChart = ({
                       fontSize={11}
                       tick={{ fill: '#10b981' }}
                       domain={[0, 100]}
+                      width={40}
                     />
                   )}
                   <Tooltip content={<AtmosphericTooltip />} />
@@ -660,10 +803,27 @@ export const OceanConditionsChart = ({
                 </ComposedChart>
               </ResponsiveContainer>
               
-              {/* Humidity label if sharing axis with pressure */}
-              {hasHumidity && hasPressure && (
-                <div className={styles.humidityAxisLabel}>Humidity (%)</div>
-              )}
+              {/* Chart Legend - below chart */}
+              <div className={styles.chartLegend}>
+                {hasTemp && (
+                  <span className={styles.legendItem}>
+                    <span className={styles.legendColor} style={{ background: '#f97316' }}></span>
+                    Temperature (°C)
+                  </span>
+                )}
+                {hasPressure && (
+                  <span className={styles.legendItem}>
+                    <span className={styles.legendColor} style={{ background: '#3b82f6' }}></span>
+                    Pressure (hPa)
+                  </span>
+                )}
+                {hasHumidity && (
+                  <span className={styles.legendItem}>
+                    <span className={styles.legendLine} style={{ borderColor: '#10b981' }}></span>
+                    Humidity (%) - dashed
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

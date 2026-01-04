@@ -80,19 +80,38 @@
   min-height: 280px;
 }
 
-.cloudsAxisLabel,
-.humidityAxisLabel {
-  position: absolute;
-  right: 20px;
-  top: 30px;
-  font-size: 10px;
-  color: #6b7280;
-  font-weight: 500;
-  pointer-events: none;
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  justify-content: center;
 }
 
-.humidityAxisLabel {
-  color: #10b981;
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.legendColor {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legendLine {
+  width: 20px;
+  height: 0;
+  border-top: 2px solid;
+  border-style: dashed;
+  flex-shrink: 0;
 }
 
 .tooltip {
