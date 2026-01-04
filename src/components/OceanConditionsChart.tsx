@@ -165,23 +165,6 @@ function getWindArrowPath(degrees: number, size: number = 18): string {
   return `M ${x1} ${y1} L ${x2} ${y2} L ${hx1} ${hy1} L ${x2} ${y2} L ${hx2} ${hy2} Z`;
 }
 
-/**
- * Get tab labels for the 3-day forecast tabs
- */
-function getTabLabels(): string[] {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfter = new Date(today);
-  dayAfter.setDate(dayAfter.getDate() + 2);
-  
-  return [
-    'Hoy',
-    tomorrow.toLocaleDateString('es', { weekday: 'short', day: 'numeric' }),
-    dayAfter.toLocaleDateString('es', { weekday: 'short', day: 'numeric' })
-  ];
-}
-
 export const OceanConditionsChart = ({
   hourlyForecast,
   tides = [],
@@ -189,14 +172,60 @@ export const OceanConditionsChart = ({
 }: OceanConditionsChartProps) => {
   const [activeTab, setActiveTab] = useState(0);
   
-  // Split forecast into 3 chunks of 24 hours each
+  // Find the starting index: the first forecast hour that is >= current time
+  // This ensures "Hoy" tab shows from now, not from the first forecast entry
+  const startIndex = useMemo(() => {
+    if (hourlyForecast.length === 0) return 0;
+    
+    const now = new Date();
+    const nowTime = now.getTime();
+    
+    // Find the first forecast entry that is at or after the current time
+    // Allow up to 2 hours in the past (in case forecast starts slightly before now)
+    // This handles cases where the forecast might start from a rounded hour (e.g., 00:00)
+    const twoHoursAgo = nowTime - 2 * 60 * 60 * 1000;
+    
+    let closestIndex = 0;
+    let closestDiff = Infinity;
+    
+    for (let i = 0; i < hourlyForecast.length; i++) {
+      const forecastTime = new Date(hourlyForecast[i]!.time).getTime();
+      const diff = forecastTime - nowTime;
+      
+      // If this forecast is in the future or very recent (within 2 hours), use it
+      if (forecastTime >= twoHoursAgo) {
+        // Prefer the closest one to now (could be slightly in past or future)
+        if (Math.abs(diff) < Math.abs(closestDiff)) {
+          closestIndex = i;
+          closestDiff = diff;
+        }
+        // If we found one that's in the future, use it immediately
+        if (forecastTime >= nowTime) {
+          return i;
+        }
+      }
+    }
+    
+    // Return the closest index found, or 0 if none found
+    return closestIndex;
+  }, [hourlyForecast]);
+  
+  // Split forecast into 3 chunks of 24 hours each, starting from startIndex
   const forecastChunks = useMemo(() => {
     const chunks: HourlyForecast[][] = [];
     for (let i = 0; i < 3; i++) {
-      chunks.push(hourlyForecast.slice(i * 24, (i + 1) * 24));
+      const chunkStart = startIndex + (i * 24);
+      const chunkEnd = chunkStart + 24;
+      const chunk = hourlyForecast.slice(chunkStart, chunkEnd);
+      // Only add chunk if it has at least some data
+      if (chunk.length > 0) {
+        chunks.push(chunk);
+      } else {
+        chunks.push([]);
+      }
     }
     return chunks;
-  }, [hourlyForecast]);
+  }, [hourlyForecast, startIndex]);
   
   // Get the active tab's forecast chunk
   const activeForecast = forecastChunks[activeTab] || [];
@@ -351,8 +380,11 @@ export const OceanConditionsChart = ({
       });
   }, [tides, adjustedForecast]);
 
-  // Calculate max wind for Y-axis
-  const maxWindKmh = Math.max(...chartData.map(d => d.windKmh));
+  // Calculate max wind for Y-axis (only if we have data)
+  const maxWindKmh = useMemo(() => {
+    if (chartData.length === 0) return 0;
+    return Math.max(...chartData.map(d => d.windKmh));
+  }, [chartData]);
 
   // Calculate midnight lines for day separation
   const midnightLines = useMemo(() => {
@@ -375,8 +407,36 @@ export const OceanConditionsChart = ({
     return lines;
   }, [chartData]);
 
+  // Get tab labels based on 24-hour periods
+  const tabLabels = useMemo(() => {
+    return ['Próximas 24hs', '48hs', '72hs'];
+  }, []);
+
+  // Show empty state if no data for active tab
   if (chartData.length === 0) {
-    return null;
+    return (
+      <div className={styles.container}>
+        <div className={styles.titleRow}>
+          <h3 className={styles.title}>72-Hour Forecast</h3>
+        </div>
+        <div className={styles.tabsContainer}>
+          {tabLabels.map((label, index) => (
+            <button
+              key={index}
+              className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab(index)}
+              aria-selected={activeTab === index}
+              role="tab"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280' }}>
+          No hay datos disponibles para este período.
+        </div>
+      </div>
+    );
   }
 
   const hasRain = chartData.some(d => d.rain > 0);
@@ -518,7 +578,7 @@ export const OceanConditionsChart = ({
 
       {/* Tab Navigation */}
       <div className={styles.tabsContainer}>
-        {getTabLabels().map((label, index) => (
+        {tabLabels.map((label, index) => (
           <button
             key={index}
             className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
