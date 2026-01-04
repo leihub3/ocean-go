@@ -170,12 +170,11 @@ export const OceanConditionsChart = ({
   tides = [],
   currentConditions,
 }: OceanConditionsChartProps) => {
-  const [activeTab, setActiveTab] = useState(0);
   const chartWrapperRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number | '100%'>('100%');
   
   // Find the starting index: the first forecast hour that is >= current time
-  // This ensures "Hoy" tab shows from now, not from the first forecast entry
+  // This ensures we start from now, not from the first forecast entry
   const startIndex = useMemo(() => {
     if (hourlyForecast.length === 0) return 0;
     
@@ -184,7 +183,6 @@ export const OceanConditionsChart = ({
     
     // Find the first forecast entry that is at or after the current time
     // Allow up to 2 hours in the past (in case forecast starts slightly before now)
-    // This handles cases where the forecast might start from a rounded hour (e.g., 00:00)
     const twoHoursAgo = nowTime - 2 * 60 * 60 * 1000;
     
     let closestIndex = 0;
@@ -208,58 +206,22 @@ export const OceanConditionsChart = ({
       }
     }
     
-    // Return the closest index found, or 0 if none found
-    // But ensure we don't start beyond available data
+    // Return the closest index found, but ensure we don't start beyond available data
     return Math.min(closestIndex, hourlyForecast.length - 1);
   }, [hourlyForecast]);
   
-  // Split forecast into 3 chunks of 24 hours each, starting from startIndex
-  const forecastChunks = useMemo(() => {
-    const chunks: HourlyForecast[][] = [];
-    const maxIndex = hourlyForecast.length;
-    
-    for (let i = 0; i < 3; i++) {
-      const chunkStart = startIndex + (i * 24);
-      const chunkEnd = Math.min(chunkStart + 24, maxIndex);
-      
-      // Only create chunk if start is within bounds and there's at least some data
-      if (chunkStart < maxIndex && chunkEnd > chunkStart) {
-        const chunk = hourlyForecast.slice(chunkStart, chunkEnd);
-        // Only add chunk if it has at least some data
-        if (chunk.length > 0) {
-          chunks.push(chunk);
-        } else {
-          chunks.push([]);
-        }
-      } else {
-        // No data available for this period
-        chunks.push([]);
-      }
-    }
-    return chunks;
+  // Get forecast starting from current time (all available data)
+  const forecastFromNow = useMemo(() => {
+    return hourlyForecast.slice(startIndex);
   }, [hourlyForecast, startIndex]);
   
-  // Ensure activeTab points to a tab with data
-  useEffect(() => {
-    if (forecastChunks[activeTab]?.length === 0) {
-      const firstTabWithData = forecastChunks.findIndex(chunk => chunk.length > 0);
-      if (firstTabWithData >= 0) {
-        setActiveTab(firstTabWithData);
-      }
-    }
-  }, [forecastChunks, activeTab]);
-  
-  // Get the active tab's forecast chunk
-  const activeForecast = forecastChunks[activeTab] || [];
-  
-  // Adjust forecast for active tab: only first tab uses current conditions
+  // Adjust forecast: replace first hour with current conditions if available
   const adjustedForecast = useMemo(() => {
-    if (activeForecast.length === 0) {
+    if (forecastFromNow.length === 0) {
       return [];
     }
     
-    // Only first tab (index 0) should use current conditions for first hour
-    if (activeTab === 0 && currentConditions) {
+    if (currentConditions) {
       const now = new Date();
       
       // Always replace first hour with current conditions to ensure consistency
@@ -273,16 +235,15 @@ export const OceanConditionsChart = ({
         pressure: currentConditions.pressure,
         humidity: currentConditions.humidity,
         // Preserve tideHeight from first forecast if available
-        tideHeight: activeForecast[0]?.tideHeight,
+        tideHeight: forecastFromNow[0]?.tideHeight,
       };
       
-      // Take first 23 hours from forecast (since we're replacing the first with current)
-      return [currentHour, ...activeForecast.slice(1)];
+      // Replace first hour with current conditions
+      return [currentHour, ...forecastFromNow.slice(1)];
     }
     
-    // Other tabs use forecast data as-is
-    return activeForecast;
-  }, [activeForecast, activeTab, currentConditions]);
+    return forecastFromNow;
+  }, [forecastFromNow, currentConditions]);
 
   // Calculate max wind for cloudiness overlay scaling
   const maxWindKmhForScale = useMemo(() => {
@@ -291,10 +252,9 @@ export const OceanConditionsChart = ({
     return Math.max(...speeds, 20); // Default to 20 if empty
   }, [adjustedForecast]);
 
-  // Prepare data for chart (24 hours from active tab)
-  const forecast24Hours = adjustedForecast;
+  // Prepare data for chart (all available forecast data)
   const chartData = useMemo(() => {
-    return forecast24Hours.map((hour, index) => {
+    return adjustedForecast.map((hour, index) => {
       const time = new Date(hour.time);
       const tideHeight = hour.tideHeight !== undefined 
         ? hour.tideHeight 
@@ -310,7 +270,7 @@ export const OceanConditionsChart = ({
       return {
         time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timeFull: time.toISOString(), // For day calculations
-        timeLabel: formatXAxisLabel(hour.time, index, forecast24Hours.map(h => h.time)),
+        timeLabel: formatXAxisLabel(hour.time, index, adjustedForecast.map(h => h.time)),
         hour: time.getHours(),
         hourFormatted: `${time.getHours()}h`, // For tooltip consistency
         day: time.getDate(), // For detecting day changes
@@ -429,18 +389,14 @@ export const OceanConditionsChart = ({
     return lines;
   }, [chartData]);
 
-  // Get tab labels - always show 3 tabs, but some may be empty
-  const tabLabels = useMemo(() => {
-    return ['Próximas 24hs', '48hs', '72hs'];
-  }, []);
-
-  // Calculate chart width for mobile scroll (show 6 hours initially)
+  // Calculate chart width for scroll: 6 hours on mobile, 12 hours on desktop/tablet
   useEffect(() => {
     const updateChartWidth = () => {
-      if (window.innerWidth <= 640 && chartWrapperRef.current && chartData.length > 0) {
-        const containerWidth = chartWrapperRef.current.clientWidth - 32;
-        const hoursToShow = 6;
-        const totalHours = chartData.length;
+      if (chartWrapperRef.current && adjustedForecast.length > 0) {
+        const containerWidth = chartWrapperRef.current.clientWidth - 32; // Subtract padding
+        const isMobile = window.innerWidth <= 640;
+        const hoursToShow = isMobile ? 6 : 12;
+        const totalHours = adjustedForecast.length;
         const calculatedWidth = Math.max(containerWidth, (containerWidth / hoursToShow) * totalHours);
         setChartWidth(calculatedWidth);
       } else {
@@ -451,36 +407,17 @@ export const OceanConditionsChart = ({
     updateChartWidth();
     window.addEventListener('resize', updateChartWidth);
     return () => window.removeEventListener('resize', updateChartWidth);
-  }, [chartData.length]);
+  }, [adjustedForecast.length]);
 
-  // Show empty state if no data for active tab
+  // Show empty state if no data
   if (chartData.length === 0) {
     return (
       <div className={styles.container}>
         <div className={styles.titleRow}>
-          <h3 className={styles.title}>72-Hour Forecast</h3>
-        </div>
-        <div className={styles.tabsContainer}>
-          {tabLabels.map((label, index) => {
-            // Only show tab if it has data
-            const hasData = forecastChunks[index] && forecastChunks[index]!.length > 0;
-            if (!hasData) return null;
-            
-            return (
-              <button
-                key={index}
-                className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
-                onClick={() => setActiveTab(index)}
-                aria-selected={activeTab === index}
-                role="tab"
-              >
-                {label}
-              </button>
-            );
-          })}
+          <h3 className={styles.title}>Hourly Forecast</h3>
         </div>
         <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280' }}>
-          No hay datos disponibles para este período.
+          No hay datos disponibles.
         </div>
       </div>
     );
@@ -583,7 +520,7 @@ export const OceanConditionsChart = ({
   return (
     <div className={styles.container}>
       <div className={styles.titleRow}>
-        <h3 className={styles.title}>72-Hour Forecast</h3>
+          <h3 className={styles.title}>Hourly Forecast</h3>
         <InfoPopover
           title="Understanding the Forecast"
           content={
@@ -621,27 +558,6 @@ export const OceanConditionsChart = ({
             </>
           }
         />
-      </div>
-
-      {/* Tab Navigation - Only show tabs with data */}
-      <div className={styles.tabsContainer}>
-        {tabLabels.map((label, index) => {
-          // Only show tab if it has data
-          const hasData = forecastChunks[index] && forecastChunks[index]!.length > 0;
-          if (!hasData) return null;
-          
-          return (
-            <button
-              key={index}
-              className={`${styles.tab} ${activeTab === index ? styles.tabActive : ''}`}
-              onClick={() => setActiveTab(index)}
-              aria-selected={activeTab === index}
-              role="tab"
-            >
-              {label}
-            </button>
-          );
-        })}
       </div>
 
       <div className={styles.chartsStack}>
