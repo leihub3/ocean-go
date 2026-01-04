@@ -1,4 +1,5 @@
 import type { CurrentConditions as CurrentConditionsType } from '../types';
+import { degreesToWindDirection } from '../utils/windDirection';
 import styles from './CurrentConditions.module.css';
 
 interface CurrentConditionsProps {
@@ -43,6 +44,11 @@ export const CurrentConditions = ({ conditions }: CurrentConditionsProps) => {
             <div className={styles.value}>
               {windSpeedKmh} km/h
               <span className={styles.unit}>({weather.windSpeed.toFixed(1)} m/s)</span>
+              {weather.windDirection !== undefined && (
+                <span className={styles.windDirection}>
+                  {degreesToWindDirection(weather.windDirection)}
+                </span>
+              )}
             </div>
           </div>
         </div>

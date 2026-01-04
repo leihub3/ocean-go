@@ -183,6 +183,17 @@
   margin-top: 2px;
 }
 
+.windDirection {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 12px;
+  color: #0ea5e9;
+  font-weight: 600;
+  background: #eff6ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 .forecastChart {
   display: flex;
   gap: 8px;

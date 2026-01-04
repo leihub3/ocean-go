@@ -7,12 +7,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
 import type { HourlyForecast, TideData } from '../types';
 import { InfoPopover } from './InfoPopover';
+import { degreesToWindDirection } from '../utils/windDirection';
 import styles from './OceanConditionsChart.module.css';
 
 interface OceanConditionsChartProps {
@@ -20,25 +20,174 @@ interface OceanConditionsChartProps {
   tides?: TideData[];
 }
 
+/**
+ * Interpolate tide height at a given time using sinusoidal interpolation
+ * between known high and low tide points
+ */
+function interpolateTideHeight(
+  time: Date,
+  tides: TideData[]
+): number | null {
+  if (!tides || tides.length === 0) return null;
+
+  const targetTime = time.getTime();
+  
+  let beforeTide: TideData | null = null;
+  let afterTide: TideData | null = null;
+
+  for (let i = 0; i < tides.length; i++) {
+    const tide = tides[i];
+    if (!tide) continue;
+    
+    const tideTime = new Date(tide.time).getTime();
+    if (tideTime <= targetTime) {
+      beforeTide = tide;
+    }
+    if (tideTime > targetTime && !afterTide) {
+      afterTide = tide;
+      break;
+    }
+  }
+
+  if (!beforeTide && tides.length > 0 && tides[0]) {
+    return tides[0].height;
+  }
+
+  const lastTide = tides[tides.length - 1];
+  if (!afterTide && lastTide) {
+    return lastTide.height;
+  }
+
+  if (!beforeTide || !afterTide) return null;
+
+  const beforeTime = new Date(beforeTide.time).getTime();
+  const afterTime = new Date(afterTide.time).getTime();
+  const duration = afterTime - beforeTime;
+
+  if (duration === 0) return beforeTide.height;
+
+  const position = (targetTime - beforeTime) / duration;
+  const sineFactor = Math.sin(Math.PI * position);
+
+  let interpolatedHeight: number;
+  
+  if (beforeTide.type === 'high' && afterTide.type === 'low') {
+    interpolatedHeight = beforeTide.height - (beforeTide.height - afterTide.height) * sineFactor;
+  } else if (beforeTide.type === 'low' && afterTide.type === 'high') {
+    interpolatedHeight = beforeTide.height + (afterTide.height - beforeTide.height) * sineFactor;
+  } else {
+    interpolatedHeight = beforeTide.height + (afterTide.height - beforeTide.height) * position;
+  }
+
+  return Number(interpolatedHeight.toFixed(2));
+}
+
+/**
+ * Get wind direction arrow SVG path
+ */
+function getWindArrowPath(degrees: number, size: number = 12): string {
+  // Convert meteorological direction (0° = North, clockwise) to screen coordinates
+  // Screen: 0° = right (→), 90° = bottom (↓), 180° = left (←), 270° = top (↑)
+  // Met: 0° = top (↑), 90° = right (→), 180° = bottom (↓), 270° = left (←)
+  const screenAngle = (degrees - 90) * (Math.PI / 180);
+  const arrowLength = size * 0.8;
+  const arrowHeadSize = size * 0.3;
+  
+  const x1 = 0;
+  const y1 = 0;
+  const x2 = Math.cos(screenAngle) * arrowLength;
+  const y2 = Math.sin(screenAngle) * arrowLength;
+  
+  // Arrow head
+  const headAngle1 = screenAngle + Math.PI * 0.8;
+  const headAngle2 = screenAngle + Math.PI * 1.2;
+  const hx1 = x2 + Math.cos(headAngle1) * arrowHeadSize;
+  const hy1 = y2 + Math.sin(headAngle1) * arrowHeadSize;
+  const hx2 = x2 + Math.cos(headAngle2) * arrowHeadSize;
+  const hy2 = y2 + Math.sin(headAngle2) * arrowHeadSize;
+  
+  return `M ${x1} ${y1} L ${x2} ${y2} L ${hx1} ${hy1} M ${x2} ${y2} L ${hx2} ${hy2}`;
+}
+
 export const OceanConditionsChart = ({
   hourlyForecast,
   tides = [],
 }: OceanConditionsChartProps) => {
+  // Calculate max wind for cloudiness overlay scaling
+  const maxWindKmhForScale = useMemo(() => {
+    const speeds = hourlyForecast.slice(0, 12).map(h => h.windSpeed * 3.6);
+    return Math.max(...speeds, 20); // Default to 20 if empty
+  }, [hourlyForecast]);
+
   // Prepare data for chart
   const chartData = useMemo(() => {
-    return hourlyForecast.slice(0, 12).map((hour) => {
+    return hourlyForecast.slice(0, 12).map((hour, index) => {
       const time = new Date(hour.time);
+      const tideHeight = hour.tideHeight !== undefined 
+        ? hour.tideHeight 
+        : interpolateTideHeight(time, tides);
+      const windKmh = Number((hour.windSpeed * 3.6).toFixed(1));
+      const cloudiness = Math.round(hour.cloudiness);
+      // Normalize cloudiness to wind scale for overlay (0-100% becomes 0-maxWind scale)
+      const cloudinessScaled = (cloudiness / 100) * maxWindKmhForScale;
+      
       return {
         time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         hour: time.getHours(),
         windSpeed: Number(hour.windSpeed.toFixed(1)),
-        cloudiness: Math.round(hour.cloudiness),
+        windDirection: hour.windDirection,
+        cloudiness,
+        cloudinessScaled,
         rain: Number(hour.rain.toFixed(2)),
-        // For display
-        windKmh: Number((hour.windSpeed * 3.6).toFixed(1)),
+        tideHeight: tideHeight !== null && tideHeight !== undefined ? tideHeight : null,
+        temperature: hour.temperature !== undefined ? Number(hour.temperature.toFixed(1)) : null,
+        pressure: hour.pressure !== undefined ? Number(hour.pressure) : null,
+        humidity: hour.humidity !== undefined ? Number(hour.humidity) : null,
+        windKmh,
+        index, // For wind arrow positioning
       };
     });
-  }, [hourlyForecast]);
+  }, [hourlyForecast, tides, maxWindKmhForScale]);
+
+  // Calculate min/max tide height for Y-axis domain
+  const tideDomain = useMemo(() => {
+    const heights = chartData
+      .map(d => d.tideHeight)
+      .filter((h): h is number => h !== null && h !== undefined);
+    if (heights.length === 0) return [0, 1];
+    
+    const minHeight = Math.min(...heights);
+    const maxHeight = Math.max(...heights);
+    const range = maxHeight - minHeight;
+    const padding = range * 0.1 || 0.1;
+    
+    return [
+      Math.max(0, minHeight - padding),
+      maxHeight + padding,
+    ];
+  }, [chartData]);
+
+  // Calculate temperature domain
+  const tempDomain = useMemo(() => {
+    const temps = chartData.filter(d => d.temperature !== null).map(d => d.temperature!);
+    if (temps.length === 0) return [20, 30];
+    const minTemp = Math.min(...temps);
+    const maxTemp = Math.max(...temps);
+    const range = maxTemp - minTemp;
+    const padding = range * 0.1 || 1;
+    return [Math.round(minTemp - padding), Math.round(maxTemp + padding)];
+  }, [chartData]);
+
+  // Calculate pressure domain
+  const pressureDomain = useMemo(() => {
+    const pressures = chartData.filter(d => d.pressure !== null).map(d => d.pressure!);
+    if (pressures.length === 0) return [1000, 1020];
+    const minPressure = Math.min(...pressures);
+    const maxPressure = Math.max(...pressures);
+    const range = maxPressure - minPressure;
+    const padding = range * 0.1 || 2;
+    return [Math.round(minPressure - padding), Math.round(maxPressure + padding)];
+  }, [chartData]);
 
   // Get tide times for reference lines
   const tideLines = useMemo(() => {
@@ -49,58 +198,114 @@ export const OceanConditionsChart = ({
       .filter((tide): tide is NonNullable<typeof tide> => tide !== null)
       .filter(tide => {
         const tideTime = new Date(tide.time);
-        // Only show tides in the next 12 hours
         return tideTime > now && tideTime <= new Date(now.getTime() + 12 * 60 * 60 * 1000);
       })
       .map(tide => {
         const tideTime = new Date(tide.time);
         const chartIndex = hourlyForecast.findIndex(h => {
           const hTime = new Date(h.time);
-          return Math.abs(hTime.getTime() - tideTime.getTime()) < 30 * 60 * 1000; // Within 30 min
+          return Math.abs(hTime.getTime() - tideTime.getTime()) < 30 * 60 * 1000;
         });
         return {
           type: tide.type,
           time: tide.time,
           hour: tideTime.getHours(),
+          height: tide.height,
           index: chartIndex >= 0 ? chartIndex : null,
         };
       });
   }, [tides, hourlyForecast]);
 
+  // Calculate max wind for Y-axis
+  const maxWindKmh = Math.max(...chartData.map(d => d.windKmh));
+
   if (chartData.length === 0) {
     return null;
   }
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
+  const hasRain = chartData.some(d => d.rain > 0);
+  const hasTemp = chartData.some(d => d.temperature !== null);
+  const hasPressure = chartData.some(d => d.pressure !== null);
+  const hasHumidity = chartData.some(d => d.humidity !== null);
+  const hasWindDirection = chartData.some(d => d.windDirection !== undefined);
+  const hasTide = chartData.some(d => d.tideHeight !== null);
+
+  // Custom dot component for wind direction arrows
+  const WindDirectionDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (!payload.windDirection || cx === undefined || cy === undefined) return null;
+    
+    // cy is already the correct Y position for the wind speed value
+    return (
+      <g transform={`translate(${cx},${cy})`}>
+        <circle r="8" fill="white" stroke="#0ea5e9" strokeWidth="1.5" />
+        <path
+          d={getWindArrowPath(payload.windDirection, 10)}
+          stroke="#0ea5e9"
+          strokeWidth={2.5}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    );
+  };
+
+  // Tooltips
+  const OceanTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
+      const data = payload[0].payload;
       return (
         <div className={styles.tooltip}>
-          <p className={styles.tooltipTime}>{payload[0].payload.time}</p>
-          {payload.map((entry: any, index: number) => {
-            if (entry.dataKey === 'windSpeed') {
-              return (
-                <p key={index} style={{ color: entry.color }}>
-                  💨 Wind: {(entry.payload.windKmh)} km/h ({entry.value} m/s)
-                </p>
-              );
-            }
-            if (entry.dataKey === 'cloudiness') {
-              return (
-                <p key={index} style={{ color: entry.color }}>
-                  ☁️ Clouds: {entry.value}%
-                </p>
-              );
-            }
-            if (entry.dataKey === 'rain') {
-              return (
-                <p key={index} style={{ color: entry.color }}>
-                  🌧️ Rain: {entry.value > 0 ? `${entry.value} mm` : 'None'}
-                </p>
-              );
-            }
-            return null;
-          })}
+          <p className={styles.tooltipTime}>{data.time}</p>
+          <p style={{ color: '#0ea5e9' }}>
+            💨 {data.windKmh} km/h ({data.windSpeed} m/s)
+            {data.windDirection !== undefined && (
+              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#0ea5e9', fontWeight: 600 }}>
+                {degreesToWindDirection(data.windDirection)}
+              </span>
+            )}
+          </p>
+          {data.tideHeight !== null && (
+            <p style={{ color: '#10b981', marginTop: '4px' }}>
+              🌊 {data.tideHeight.toFixed(2)} m
+            </p>
+          )}
+          <p style={{ color: '#6b7280', marginTop: '4px' }}>
+            ☁️ {data.cloudiness}%
+          </p>
+          {data.rain > 0 && (
+            <p style={{ color: '#3b82f6', marginTop: '4px' }}>
+              🌧️ {data.rain.toFixed(1)} mm
+            </p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const AtmosphericTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className={styles.tooltip}>
+          <p className={styles.tooltipTime}>{data.time}</p>
+          {data.temperature !== null && (
+            <p style={{ color: '#f97316' }}>
+              🌡️ {data.temperature}°C
+            </p>
+          )}
+          {data.pressure !== null && (
+            <p style={{ color: '#3b82f6', marginTop: data.temperature !== null ? '4px' : '0' }}>
+              📊 {data.pressure} hPa
+            </p>
+          )}
+          {data.humidity !== null && (
+            <p style={{ color: '#10b981', marginTop: (data.temperature !== null || data.pressure !== null) ? '4px' : '0' }}>
+              💧 {data.humidity}%
+            </p>
+          )}
         </div>
       );
     }
@@ -112,129 +317,357 @@ export const OceanConditionsChart = ({
       <div className={styles.titleRow}>
         <h3 className={styles.title}>12-Hour Forecast</h3>
         <InfoPopover
-          title="Understanding the Forecast Chart"
+          title="Understanding the Forecast"
           content={
             <>
               <p style={{ marginBottom: '12px' }}>
-                This chart shows ocean conditions over the next 12 hours:
+                Hourly forecast of ocean and atmospheric conditions:
               </p>
               <div style={{ marginBottom: '8px' }}>
-                <strong>💨 Wind Speed</strong> — Primary safety factor for water activities. Displayed in km/h (primary) and m/s (secondary).
+                <strong>💨 Wind Speed</strong> — Primary safety factor for water activities.
+                {hasWindDirection && ' Arrows show wind direction.'}
               </div>
+              {hasTide && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>🌊 Tide Height</strong> — Important for fishing and beach access.
+                </div>
+              )}
               <div style={{ marginBottom: '8px' }}>
-                <strong>☁️ Cloudiness</strong> — Affects light but rarely blocks activities (except snorkeling visibility).
+                <strong>☁️ Cloudiness</strong> — Affects light and visibility.
               </div>
-              <div style={{ marginBottom: '8px' }}>
-                <strong>🌧️ Rain</strong> — Heavy rain can affect visibility and comfort.
-              </div>
-              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb', fontSize: '12px', color: '#6b7280' }}>
-                <strong>Vertical lines</strong> indicate high/low tides.
-              </div>
+              {hasRain && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>🌧️ Rain</strong> — Shown in tooltip when precipitation is expected.
+                </div>
+              )}
+              {hasTemp && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>🌡️ Temperature</strong> — Air temperature in Celsius.
+                </div>
+              )}
+              {(hasPressure || hasHumidity) && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>📊 Pressure & 💧 Humidity</strong> — Atmospheric conditions.
+                </div>
+              )}
             </>
           }
         />
       </div>
-      <div className={styles.chartContainer}>
-        <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart
-            data={chartData}
-            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="time"
-              stroke="#6b7280"
-              fontSize={11}
-              tick={{ fill: '#6b7280' }}
-            />
-            <YAxis
-              yAxisId="left"
-              label={{ value: 'Wind (m/s)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#6b7280', fontSize: 11 } }}
-              stroke="#0ea5e9"
-              fontSize={11}
-              tick={{ fill: '#0ea5e9' }}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              label={{ value: 'Clouds (%) / Rain (mm)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#6b7280', fontSize: 11 } }}
-              stroke="#6b7280"
-              fontSize={11}
-              tick={{ fill: '#6b7280' }}
-              domain={[0, 100]}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ paddingTop: '20px' }}
-              iconType="line"
-              formatter={(value) => {
-                if (value === 'windSpeed') return '💨 Wind Speed';
-                if (value === 'cloudiness') return '☁️ Cloudiness';
-                if (value === 'rain') return '🌧️ Rain';
-                return value;
-              }}
-            />
-            
-            {/* Rain area (background) */}
-            <Area
-              yAxisId="right"
-              type="monotone"
-              dataKey="rain"
-              fill="#93c5fd"
-              fillOpacity={0.3}
-              stroke="#3b82f6"
-              strokeWidth={2}
-              name="rain"
-            />
-            
-            {/* Wind speed line */}
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="windSpeed"
-              stroke="#0ea5e9"
-              strokeWidth={2.5}
-              dot={{ fill: '#0ea5e9', r: 3 }}
-              activeDot={{ r: 5 }}
-              name="windSpeed"
-            />
-            
-            {/* Cloudiness line */}
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="cloudiness"
-              stroke="#9ca3af"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ fill: '#9ca3af', r: 2.5 }}
-              activeDot={{ r: 4 }}
-              name="cloudiness"
-            />
-            
-            {/* Tide reference lines */}
-            {tideLines.map((tide, index) => {
-              if (tide.index === null) return null;
-              return (
-                <ReferenceLine
-                  key={`tide-${index}`}
-                  x={chartData[tide.index]?.time}
-                  stroke={tide.type === 'high' ? '#10b981' : '#3b82f6'}
-                  strokeDasharray="3 3"
-                  strokeWidth={2}
-                  label={{
-                    value: tide.type === 'high' ? 'High Tide' : 'Low Tide',
-                    position: 'top',
-                    fill: tide.type === 'high' ? '#10b981' : '#3b82f6',
-                    fontSize: 10,
-                  }}
+
+      <div className={styles.chartsStack}>
+        {/* Ocean Conditions Chart - Large consolidated */}
+        <div className={styles.chartSection}>
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionIcon}>🌊</span>
+            <h4 className={styles.sectionTitle}>Ocean Conditions</h4>
+            {maxWindKmh > 0 && (
+              <span className={styles.maxValue}>Max Wind: {maxWindKmh.toFixed(0)} km/h</span>
+            )}
+          </div>
+          
+          <div className={styles.chartWrapper}>
+            <ResponsiveContainer width="100%" height={280} className={styles.oceanChart}>
+              <ComposedChart
+                data={chartData}
+                margin={{ top: 20, right: 10, left: 5, bottom: 25 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="#9ca3af"
+                  fontSize={11}
+                  tick={{ fill: '#6b7280' }}
                 />
-              );
-            })}
-          </ComposedChart>
-        </ResponsiveContainer>
+                {/* Wind Speed Y-Axis (left) */}
+                <YAxis 
+                  yAxisId="wind"
+                  label={{ 
+                    value: 'Wind (km/h)', 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { fill: '#0ea5e9', fontSize: 11 }
+                  }}
+                  stroke="#0ea5e9"
+                  fontSize={11}
+                  tick={{ fill: '#0ea5e9' }}
+                  domain={[0, 'dataMax + 2']}
+                />
+                {/* Tide Height Y-Axis (right) */}
+                {hasTide && (
+                  <YAxis 
+                    yAxisId="tide"
+                    orientation="right"
+                    label={{ 
+                      value: 'Tide (m)', 
+                      angle: 90, 
+                      position: 'insideRight',
+                      style: { fill: '#10b981', fontSize: 11 }
+                    }}
+                    stroke="#10b981"
+                    fontSize={11}
+                    tick={{ fill: '#10b981' }}
+                    domain={tideDomain}
+                  />
+                )}
+                {/* Cloudiness - shown as overlay line, no separate Y-axis when tide exists */}
+                <Tooltip content={<OceanTooltip />} />
+                
+                {/* Wind Speed - Area and Line */}
+                <Area
+                  yAxisId="wind"
+                  type="monotone"
+                  dataKey="windKmh"
+                  fill="#0ea5e9"
+                  fillOpacity={0.15}
+                  stroke="none"
+                />
+                <Line
+                  yAxisId="wind"
+                  type="monotone"
+                  dataKey="windKmh"
+                  stroke="#0ea5e9"
+                  strokeWidth={2.5}
+                  dot={false}
+                  activeDot={{ r: 5, fill: '#0ea5e9' }}
+                />
+                {/* Wind Direction Arrows - shown every 2 hours to avoid clutter */}
+                {hasWindDirection && (
+                  <Line
+                    yAxisId="wind"
+                    type="monotone"
+                    dataKey="windKmh"
+                    stroke="none"
+                    dot={(props: any) => {
+                      // Only show arrow every 2 hours (index 0, 2, 4, 6, 8, 10)
+                      const index = props.payload?.index;
+                      if (index !== undefined && index % 2 === 0) {
+                        return <WindDirectionDot {...props} />;
+                      }
+                      return null;
+                    }}
+                    activeDot={false}
+                  />
+                )}
+                
+                {/* Tide Height */}
+                {hasTide && (
+                  <>
+                    <Area
+                      yAxisId="tide"
+                      type="monotone"
+                      dataKey="tideHeight"
+                      fill="#10b981"
+                      fillOpacity={0.2}
+                      stroke="none"
+                    />
+                    <Line
+                      yAxisId="tide"
+                      type="monotone"
+                      dataKey="tideHeight"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{ r: 4, fill: '#10b981' }}
+                    />
+                    {tideLines.map((tide, index) => {
+                      if (tide.index === null || tide.index >= chartData.length) return null;
+                      return (
+                        <ReferenceLine
+                          key={`tide-${index}`}
+                          yAxisId="tide"
+                          x={chartData[tide.index]?.time}
+                          stroke={tide.type === 'high' ? '#10b981' : '#3b82f6'}
+                          strokeDasharray="2 2"
+                          strokeWidth={1.5}
+                          label={{
+                            value: tide.type === 'high' ? 'High' : 'Low',
+                            position: 'insideTop',
+                            fill: tide.type === 'high' ? '#10b981' : '#3b82f6',
+                            fontSize: 9,
+                          }}
+                        />
+                      );
+                    })}
+                  </>
+                )}
+                
+                {/* Cloudiness - overlay line (no Y-axis, shown as percentage overlay) */}
+                <Line
+                  yAxisId="wind"
+                  type="monotone"
+                  dataKey="cloudinessScaled"
+                  stroke="#6b7280"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#6b7280' }}
+                  name="cloudiness"
+                  connectNulls
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+            
+            {/* Cloudiness label - shown as overlay percentage */}
+            {hasTide && (
+              <div className={styles.cloudsAxisLabel}>☁️ Clouds (%) - dashed line</div>
+            )}
+          </div>
+        </div>
+
+        {/* Atmospheric Conditions Chart - Large consolidated */}
+        {(hasTemp || hasPressure || hasHumidity) && (
+          <div className={styles.chartSection}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.sectionIcon}>🌡️</span>
+              <h4 className={styles.sectionTitle}>Atmospheric Conditions</h4>
+            </div>
+            
+            <div className={styles.chartWrapper}>
+              <ResponsiveContainer width="100%" height={280} className={styles.atmosphericChart}>
+                <ComposedChart
+                  data={chartData}
+                  margin={{ top: 20, right: 10, left: 5, bottom: 25 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="time" 
+                    stroke="#9ca3af"
+                    fontSize={11}
+                    tick={{ fill: '#6b7280' }}
+                  />
+                  {/* Temperature Y-Axis (left) */}
+                  {hasTemp && (
+                    <YAxis 
+                      yAxisId="temp"
+                      label={{ 
+                        value: 'Temp (°C)', 
+                        angle: -90, 
+                        position: 'insideLeft',
+                        style: { fill: '#f97316', fontSize: 11 }
+                      }}
+                      stroke="#f97316"
+                      fontSize={11}
+                      tick={{ fill: '#f97316' }}
+                      domain={tempDomain}
+                    />
+                  )}
+                  {/* Pressure Y-Axis (right) */}
+                  {hasPressure && (
+                    <YAxis 
+                      yAxisId="pressure"
+                      orientation="right"
+                      label={{ 
+                        value: 'Pressure (hPa)', 
+                        angle: 90, 
+                        position: 'insideRight',
+                        style: { fill: '#3b82f6', fontSize: 11 }
+                      }}
+                      stroke="#3b82f6"
+                      fontSize={11}
+                      tick={{ fill: '#3b82f6' }}
+                      domain={pressureDomain}
+                    />
+                  )}
+                  {/* Humidity - will use same scale as pressure or separate */}
+                  {hasHumidity && !hasPressure && (
+                    <YAxis 
+                      yAxisId="humidity"
+                      orientation="right"
+                      label={{ 
+                        value: 'Humidity (%)', 
+                        angle: 90, 
+                        position: 'insideRight',
+                        style: { fill: '#10b981', fontSize: 11 }
+                      }}
+                      stroke="#10b981"
+                      fontSize={11}
+                      tick={{ fill: '#10b981' }}
+                      domain={[0, 100]}
+                    />
+                  )}
+                  <Tooltip content={<AtmosphericTooltip />} />
+                  
+                  {/* Temperature */}
+                  {hasTemp && (
+                    <>
+                      <Area
+                        yAxisId="temp"
+                        type="monotone"
+                        dataKey="temperature"
+                        fill="#f97316"
+                        fillOpacity={0.2}
+                        stroke="none"
+                      />
+                      <Line
+                        yAxisId="temp"
+                        type="monotone"
+                        dataKey="temperature"
+                        stroke="#f97316"
+                        strokeWidth={2.5}
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#f97316' }}
+                      />
+                    </>
+                  )}
+                  
+                  {/* Pressure */}
+                  {hasPressure && (
+                    <>
+                      <Area
+                        yAxisId="pressure"
+                        type="monotone"
+                        dataKey="pressure"
+                        fill="#3b82f6"
+                        fillOpacity={0.15}
+                        stroke="none"
+                      />
+                      <Line
+                        yAxisId="pressure"
+                        type="monotone"
+                        dataKey="pressure"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#3b82f6' }}
+                      />
+                    </>
+                  )}
+                  
+                  {/* Humidity */}
+                  {hasHumidity && (
+                    <>
+                      <Area
+                        yAxisId={hasPressure ? "pressure" : "humidity"}
+                        type="monotone"
+                        dataKey="humidity"
+                        fill="#10b981"
+                        fillOpacity={0.1}
+                        stroke="none"
+                      />
+                      <Line
+                        yAxisId={hasPressure ? "pressure" : "humidity"}
+                        type="monotone"
+                        dataKey="humidity"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#10b981' }}
+                      />
+                    </>
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+              
+              {/* Humidity label if sharing axis with pressure */}
+              {hasHumidity && hasPressure && (
+                <div className={styles.humidityAxisLabel}>Humidity (%)</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
-

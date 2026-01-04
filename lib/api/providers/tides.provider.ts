@@ -31,6 +31,10 @@ interface WorldTidesResponse {
 
 interface TidesProviderResult {
   data: TideData[];
+  hourlyHeights?: Array<{
+    time: string; // ISO string
+    height: number; // meters
+  }>;
   error?: ProviderError;
 }
 
@@ -194,8 +198,18 @@ export class TidesProvider {
       }
       normalized = deduplicated;
 
+      // Extract hourly heights from the heights array if available
+      let hourlyHeights: Array<{ time: string; height: number }> | undefined;
+      if (rawData.heights && rawData.heights.length > 0) {
+        hourlyHeights = rawData.heights.map(h => ({
+          time: new Date(h.dt * 1000).toISOString(),
+          height: h.height,
+        }));
+      }
+
       return {
         data: normalized,
+        hourlyHeights,
       };
     } catch (error) {
       console.error('Tides provider error:', error);
@@ -203,7 +217,8 @@ export class TidesProvider {
       // Return mock data on failure
       const mockData = this.getMockTides();
       return {
-        ...mockData,
+        data: mockData.data,
+        hourlyHeights: mockData.hourlyHeights,
         error: {
           provider: 'tides',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -247,8 +262,29 @@ export class TidesProvider {
     // Filter to only future tides
     const futureTides = tides.filter(tide => new Date(tide.time) > now);
 
+    // Generate hourly mock heights using sinusoidal interpolation
+    const hourlyHeights: Array<{ time: string; height: number }> = [];
+    const startHeight = startIsHigh ? 0.8 : 0.3;
+    let mockTime = new Date(now);
+    
+    for (let hour = 0; hour < 48; hour++) {
+      // Simple sinusoidal pattern: 6-hour cycle
+      const cyclePosition = (hour % 12) / 12; // 0 to 1 over 12 hours (2 cycles per day)
+      const sineValue = Math.sin(cyclePosition * Math.PI * 2);
+      // Normalize to realistic height range (0.1 to 1.0 meters)
+      const height = 0.55 + sineValue * 0.45; // Center at 0.55, range ±0.45
+      
+      hourlyHeights.push({
+        time: mockTime.toISOString(),
+        height: Math.round(height * 100) / 100,
+      });
+      
+      mockTime = new Date(mockTime.getTime() + 60 * 60 * 1000); // Add 1 hour
+    }
+
     return {
       data: futureTides.length > 0 ? futureTides : tides.slice(0, 8),
+      hourlyHeights,
     };
   }
 }

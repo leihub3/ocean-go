@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .title {
@@ -21,22 +21,91 @@
   color: #1f2937;
 }
 
-.chartContainer {
-  width: 100%;
-  overflow-x: auto;
+.chartsStack {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.chartSection {
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 24px;
+}
+
+.chartSection:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.sectionIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  flex: 1;
+}
+
+.maxValue {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.chartWrapper {
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #f0f0f0;
+  position: relative;
+}
+
+.oceanChart,
+.atmosphericChart {
+  min-height: 280px;
+}
+
+.cloudsAxisLabel,
+.humidityAxisLabel {
+  position: absolute;
+  right: 20px;
+  top: 30px;
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.humidityAxisLabel {
+  color: #10b981;
 }
 
 .tooltip {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .tooltipTime {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   color: #1f2937;
   margin: 0 0 6px 0;
   padding-bottom: 6px;
@@ -44,23 +113,115 @@
 }
 
 .tooltip p {
-  margin: 4px 0;
+  margin: 0;
   font-size: 12px;
   color: #4b5563;
 }
 
+/* Mobile optimizations */
 @media (max-width: 640px) {
   .container {
     padding: 16px;
+    margin-bottom: 16px;
   }
 
   .title {
     font-size: 16px;
   }
 
-  .chartContainer {
-    margin: 0 -16px;
-    padding: 0 16px;
+  .chartsStack {
+    gap: 24px;
+  }
+
+  .chartSection {
+    padding-bottom: 20px;
+  }
+
+  .sectionHeader {
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+
+  .sectionTitle {
+    font-size: 14px;
+  }
+
+  .sectionIcon {
+    font-size: 18px;
+  }
+
+  .maxValue {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .chartWrapper {
+    padding: 12px;
+  }
+
+  .oceanChart,
+  .atmosphericChart {
+    min-height: 240px;
+  }
+
+  .cloudsAxisLabel,
+  .humidityAxisLabel {
+    right: 15px;
+    top: 25px;
+    font-size: 9px;
+  }
+
+  /* Hide Y-axis labels in mobile to save space */
+  .oceanChart :global(.recharts-yAxis .recharts-label),
+  .atmosphericChart :global(.recharts-yAxis .recharts-label) {
+    display: none !important;
+  }
+
+  /* Smaller axis ticks */
+  .oceanChart :global(.recharts-cartesian-axis-tick),
+  .atmosphericChart :global(.recharts-cartesian-axis-tick) {
+    font-size: 9px !important;
+  }
+
+  .tooltip {
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  .tooltipTime {
+    font-size: 11px;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+  }
+
+  .tooltip p {
+    font-size: 11px;
   }
 }
 
+@media (max-width: 480px) {
+  .oceanChart,
+  .atmosphericChart {
+    min-height: 220px;
+  }
+
+  .sectionTitle {
+    font-size: 13px;
+  }
+
+  .maxValue {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .chartWrapper {
+    padding: 10px;
+  }
+
+  .cloudsAxisLabel,
+  .humidityAxisLabel {
+    font-size: 8px;
+    right: 12px;
+    top: 20px;
+  }
+}

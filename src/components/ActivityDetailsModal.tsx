@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { ActivityType, ActivityRecommendation, CurrentConditions } from '../types';
 import { getActivityStatusForHour } from '../utils/activityRules';
 import { StatusIndicator } from './StatusIndicator';
+import { degreesToWindDirection } from '../utils/windDirection';
 import styles from './ActivityDetailsModal.module.css';
 
 interface ActivityDetailsModalProps {
@@ -99,6 +100,11 @@ export const ActivityDetailsModal = ({
                       <span className={styles.conditionUnit}>
                         ({conditions.weather.windSpeed.toFixed(1)} m/s)
                       </span>
+                      {conditions.weather.windDirection !== undefined && (
+                        <span className={styles.windDirection}>
+                          {degreesToWindDirection(conditions.weather.windDirection)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

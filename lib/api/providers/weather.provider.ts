@@ -3,19 +3,27 @@ import type { WeatherData, HourlyForecast, ProviderError } from '../types/index.
 interface OpenWeatherResponse {
   current: {
     wind_speed: number;
+    wind_deg?: number; // Wind direction in degrees (0-360, 0 = North)
     clouds: number;
     rain?: {
       '1h'?: number;
     };
+    temp?: number; // Celsius
+    pressure?: number; // hPa
+    humidity?: number; // percentage 0-100
     dt: number;
   };
   hourly?: Array<{
     dt: number;
     wind_speed: number;
+    wind_deg?: number; // Wind direction in degrees (0-360, 0 = North)
     clouds: number;
     rain?: {
       '1h'?: number;
     };
+    temp?: number; // Celsius
+    pressure?: number; // hPa
+    humidity?: number; // percentage 0-100
   }>;
 }
 
@@ -69,8 +77,12 @@ export class WeatherProvider {
       // Normalize to internal model
       const normalized: WeatherData = {
         windSpeed: rawData.current.wind_speed,
+        windDirection: rawData.current.wind_deg,
         cloudiness: rawData.current.clouds,
         rain: rawData.current.rain?.['1h'] || 0,
+        temperature: rawData.current.temp,
+        pressure: rawData.current.pressure,
+        humidity: rawData.current.humidity,
         timestamp: new Date(rawData.current.dt * 1000).toISOString(),
       };
 
@@ -78,8 +90,12 @@ export class WeatherProvider {
       const hourly: HourlyForecast[] | undefined = rawData.hourly?.slice(0, 24).map(hour => ({
         time: new Date(hour.dt * 1000).toISOString(),
         windSpeed: hour.wind_speed,
+        windDirection: hour.wind_deg,
         rain: hour.rain?.['1h'] || 0,
         cloudiness: hour.clouds,
+        temperature: hour.temp,
+        pressure: hour.pressure,
+        humidity: hour.humidity,
       }));
 
       return {
@@ -114,24 +130,46 @@ export class WeatherProvider {
     const baseWindSpeed = 3 + Math.sin((hour / 24) * Math.PI * 2) * 1; // 2-4 m/s range
     const baseCloudiness = 40 + Math.random() * 30; // 40-70% typical
     const baseRain = hour >= 14 && hour <= 18 ? Math.random() * 0.5 : 0; // Light rain if any
+    // Caribbean temperature: 25-30°C typical
+    const baseTemp = 27 + Math.sin((hour / 24) * Math.PI * 2) * 2; // 25-29°C range
+    // Typical Caribbean pressure: 1010-1015 hPa
+    const basePressure = 1012 + Math.random() * 3; // 1012-1015 hPa
+    // Typical Caribbean humidity: 60-80%
+    const baseHumidity = 70 + Math.random() * 10; // 70-80% range
+
+    // Typical Caribbean wind direction: Trade winds from E/SE (90-135°)
+    const baseWindDir = 110 + Math.random() * 25; // 110-135° (E-SE)
 
     const mockHourly: HourlyForecast[] = Array.from({ length: 24 }, (_, i) => {
       const forecastHour = (hour + i) % 24;
       // Hourly variation: slightly different from current but similar
       const hourWindSpeed = baseWindSpeed + (Math.random() * 2 - 1) * 0.5; // ±0.5 m/s variation
+      const hourTemp = baseTemp + Math.sin((forecastHour / 24) * Math.PI * 2) * 2 + (Math.random() - 0.5) * 1;
+      const hourPressure = basePressure + (Math.random() - 0.5) * 2;
+      const hourHumidity = baseHumidity + (Math.random() - 0.5) * 10;
+      // Wind direction varies slightly (±15 degrees)
+      const hourWindDir = Math.round((baseWindDir + (Math.random() - 0.5) * 30) % 360);
       return {
         time: new Date(now.getTime() + i * 60 * 60 * 1000).toISOString(),
         windSpeed: Math.max(0.5, hourWindSpeed), // Ensure positive
+        windDirection: hourWindDir,
         rain: forecastHour >= 14 && forecastHour <= 18 ? Math.random() * 0.3 : 0,
         cloudiness: Math.max(0, Math.min(100, baseCloudiness + Math.random() * 10 - 5)),
+        temperature: Math.round((hourTemp) * 10) / 10, // Round to 1 decimal
+        pressure: Math.round(hourPressure),
+        humidity: Math.round(hourHumidity),
       };
     });
 
     return {
       data: {
         windSpeed: Math.max(0.5, baseWindSpeed), // Ensure positive
+        windDirection: Math.round(baseWindDir),
         cloudiness: Math.max(0, Math.min(100, baseCloudiness)),
         rain: Math.max(0, baseRain),
+        temperature: Math.round(baseTemp * 10) / 10,
+        pressure: Math.round(basePressure),
+        humidity: Math.round(baseHumidity),
         timestamp: now.toISOString(),
       },
       hourly: mockHourly,

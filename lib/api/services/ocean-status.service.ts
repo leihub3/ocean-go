@@ -97,12 +97,41 @@ export class OceanStatusService {
       tide => new Date(tide.time) > now
     ) || null;
 
+    // Merge hourly forecast with tide heights if available
+    let mergedHourlyForecast = weatherResult.hourly;
+    if (weatherResult.hourly && tidesResult.hourlyHeights && tidesResult.hourlyHeights.length > 0) {
+      mergedHourlyForecast = weatherResult.hourly.map(hour => {
+        const hourTime = new Date(hour.time);
+        // Find the closest tide height (within 30 minutes)
+        const closestTide = tidesResult.hourlyHeights?.reduce((closest, tide) => {
+          if (!closest) return tide;
+          const tideTime = new Date(tide.time);
+          const closestTime = new Date(closest.time);
+          const tideDiff = Math.abs(hourTime.getTime() - tideTime.getTime());
+          const closestDiff = Math.abs(hourTime.getTime() - closestTime.getTime());
+          return tideDiff < closestDiff ? tide : closest;
+        });
+        
+        // Only include if within 30 minutes
+        if (closestTide) {
+          const timeDiff = Math.abs(hourTime.getTime() - new Date(closestTide.time).getTime());
+          if (timeDiff <= 30 * 60 * 1000) {
+            return {
+              ...hour,
+              tideHeight: Number(closestTide.height.toFixed(2)),
+            };
+          }
+        }
+        return hour;
+      });
+    }
+
     // Build conditions object
     const conditions: CurrentConditions = {
       weather: weatherResult.data,
       currentTide,
       nextTide,
-      hourlyForecast: weatherResult.hourly,
+      hourlyForecast: mergedHourlyForecast,
     };
 
     return {
@@ -110,7 +139,7 @@ export class OceanStatusService {
       timestamp: new Date().toISOString(),
       activities,
       conditions,
-      hourlyForecast: weatherResult.hourly, // Also at top level for convenience
+      hourlyForecast: mergedHourlyForecast, // Also at top level for convenience
       ...(errors.length > 0 && { errors }),
     };
   }
