@@ -79,79 +79,103 @@ function getRegionConfig(regionId: string) {
 
 /**
  * Vercel serverless function handler
- * Supports both Node.js and Edge runtime formats
+ * Supports both formats:
+ * 1. Traditional Vercel format (req, res) - for production
+ * 2. Web API Request/Response format - for development server
  */
-export default async function handler(
-  request: Request | { url: string; headers: Headers | Record<string, string | string[]> },
-  context?: { waitUntil?: (promise: Promise<any>) => void }
-): Promise<Response> {
-  // Normalize request to handle both formats
-  let requestUrl: string;
-  let requestHeaders: Headers | Record<string, string | string[]>;
-  
-  if (request instanceof Request) {
-    // Edge runtime format
-    requestUrl = request.url;
-    requestHeaders = request.headers;
-  } else {
-    // Node.js runtime format
-    requestUrl = request.url;
-    requestHeaders = request.headers;
+interface VercelRequest {
+  query?: Record<string, string | string[] | undefined>;
+  method?: string;
+  headers?: Record<string, string | string[] | undefined>;
+  body?: any;
+  url?: string;
+}
+
+interface VercelResponse {
+  status: (code: number) => VercelResponse;
+  json: (data: any) => void;
+  setHeader: (name: string, value: string) => void;
+}
+
+// Helper to extract regionId from different request formats
+function extractRegionId(reqOrRequest: VercelRequest | Request): string | null {
+  // Check if it's a Web API Request
+  if (reqOrRequest instanceof Request) {
+    const url = new URL(reqOrRequest.url);
+    return url.searchParams.get('region');
   }
+  
+  // It's a Vercel request object
+  const req = reqOrRequest as VercelRequest;
+  
+  // Try req.query first (Vercel format)
+  if (req.query && typeof req.query.region === 'string') {
+    return req.query.region;
+  }
+  if (req.query && Array.isArray(req.query.region) && req.query.region.length > 0) {
+    return req.query.region[0] || null;
+  }
+  
+  // Fallback: parse from URL
+  if (req.url) {
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      return url.searchParams.get('region');
+    } catch {
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+// Main handler - supports both formats
+export default async function handler(
+  reqOrRequest: VercelRequest | Request,
+  res?: VercelResponse
+): Promise<Response | void> {
+  // Detect format: if second parameter is missing or it's a Request, use Web API format
+  const isWebAPIFormat = reqOrRequest instanceof Request || !res;
+  
   let regionId: string | null = null;
   
   try {
-    // Parse query parameters
-    // Handle both absolute URLs and relative paths (Vercel edge runtime)
-    let url: URL;
-    try {
-      url = new URL(requestUrl);
-    } catch (urlError) {
-      // If request.url is relative, construct absolute URL
-      // Vercel provides request headers with host information
-      // Handle both Headers object and plain object
-      const headers = requestHeaders || {};
-      const getHeader = (name: string): string | null => {
-        if (headers instanceof Headers) {
-          return headers.get(name);
-        }
-        // Plain object access
-        const lowerName = name.toLowerCase();
-        for (const [key, value] of Object.entries(headers)) {
-          if (key.toLowerCase() === lowerName) {
-            return Array.isArray(value) ? value[0] : String(value);
-          }
-        }
-        return null;
-      };
-      
-      const host = getHeader('host') || getHeader('x-forwarded-host') || 'localhost';
-      const protocol = getHeader('x-forwarded-proto') || 'https';
-      url = new URL(requestUrl, `${protocol}://${host}`);
-    }
-    regionId = url.searchParams.get('region');
+    // Extract regionId
+    regionId = extractRegionId(reqOrRequest);
 
     if (!regionId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameter: region' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      if (isWebAPIFormat && reqOrRequest instanceof Request) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required parameter: region' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      } else if (res) {
+        res.status(400).json({ error: 'Missing required parameter: region' });
+        return;
+      }
     }
 
     // Check cache first
     const cached = getCached(regionId);
     if (cached) {
-      return new Response(JSON.stringify(cached), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Cache': 'HIT',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
+      if (isWebAPIFormat && reqOrRequest instanceof Request) {
+        return new Response(JSON.stringify(cached), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Cache': 'HIT',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      } else if (res) {
+        res.setHeader('X-Cache', 'HIT');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.status(200).json(cached);
+        return;
+      }
     }
 
     // Get region configuration
@@ -160,18 +184,22 @@ export default async function handler(
       regionConfig = getRegionConfig(regionId);
     } catch (error) {
       console.error('Region config error:', error);
-      return new Response(
-        JSON.stringify({
-          error: error instanceof Error ? error.message : 'Invalid region',
-        }),
-        {
+      const errorResponse = {
+        error: error instanceof Error ? error.message : 'Invalid region',
+      };
+      if (isWebAPIFormat && reqOrRequest instanceof Request) {
+        return new Response(JSON.stringify(errorResponse), {
           status: 400,
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
           },
-        }
-      );
+        });
+      } else if (res) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.status(400).json(errorResponse);
+        return;
+      }
     }
 
     // Get ocean status
@@ -191,74 +219,53 @@ export default async function handler(
       console.error(`[${regionId}] Service error:`, error);
       console.error(`[${regionId}] Error stack:`, error instanceof Error ? error.stack : 'No stack');
       // Return error response instead of throwing to provide better error details
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to fetch ocean status',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: process.env.NODE_ENV !== 'production' && error instanceof Error ? error.stack : undefined,
-        }),
-        {
+      const errorResponse = {
+        error: 'Failed to fetch ocean status',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: process.env.NODE_ENV !== 'production' && error instanceof Error ? error.stack : undefined,
+      };
+      if (isWebAPIFormat && reqOrRequest instanceof Request) {
+        return new Response(JSON.stringify(errorResponse), {
           status: 500,
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
           },
-        }
-      );
+        });
+      } else if (res) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.status(500).json(errorResponse);
+        return;
+      }
     }
 
     // Cache the result
     setCache(regionId, status);
 
-    // Serialize response
-    const jsonStart = Date.now();
-    const jsonResponse = JSON.stringify(status);
-    const jsonDuration = Date.now() - jsonStart;
-    console.log(`[${regionId}] JSON serialization took ${jsonDuration}ms`);
-
-    const response = new Response(jsonResponse, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Cache': 'MISS',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-    
+    // Log response size for debugging
+    const responseSize = JSON.stringify(status).length;
+    console.log(`[${regionId}] Response size: ${responseSize} bytes`);
     console.log(`[${regionId}] Returning response...`);
-    return response;
+
+    if (isWebAPIFormat && reqOrRequest instanceof Request) {
+      return new Response(JSON.stringify(status), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Cache': 'MISS',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    } else if (res) {
+      res.setHeader('X-Cache', 'MISS');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.status(200).json(status);
+      return;
+    }
   } catch (error) {
-    // Safely extract regionId from request URL if not already set
+    // Safely extract regionId from request if not already set
     if (!regionId) {
-      try {
-        let url: URL;
-        try {
-          url = new URL(requestUrl);
-        } catch {
-          // Handle both Headers object and plain object
-          const headers = requestHeaders || {};
-          const getHeader = (name: string): string | null => {
-            if (headers instanceof Headers) {
-              return headers.get(name);
-            }
-            // Plain object access
-            const lowerName = name.toLowerCase();
-            for (const [key, value] of Object.entries(headers)) {
-              if (key.toLowerCase() === lowerName) {
-                return Array.isArray(value) ? value[0] : String(value);
-              }
-            }
-            return null;
-          };
-          
-          const host = getHeader('host') || getHeader('x-forwarded-host') || 'localhost';
-          const protocol = getHeader('x-forwarded-proto') || 'https';
-          url = new URL(requestUrl, `${protocol}://${host}`);
-        }
-        regionId = url.searchParams.get('region');
-      } catch {
-        regionId = 'unknown';
-      }
+      regionId = extractRegionId(reqOrRequest) || 'unknown';
     }
     console.error(`[${regionId || 'unknown'}] Handler error:`, error);
     console.error(`[${regionId}] Error details:`, {
@@ -266,20 +273,24 @@ export default async function handler(
       stack: error instanceof Error ? error.stack : 'No stack',
       name: error instanceof Error ? error.name : 'Unknown',
     });
-    return new Response(
-      JSON.stringify({
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        // Include stack in development/debugging (remove in production if needed)
-        ...(process.env.NODE_ENV !== 'production' && error instanceof Error && { stack: error.stack }),
-      }),
-      {
+    const errorResponse = {
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      // Include stack in development/debugging (remove in production if needed)
+      ...(process.env.NODE_ENV !== 'production' && error instanceof Error && { stack: error.stack }),
+    };
+    if (isWebAPIFormat && reqOrRequest instanceof Request) {
+      return new Response(JSON.stringify(errorResponse), {
         status: 500,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-      }
-    );
+      });
+    } else if (res) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.status(500).json(errorResponse);
+      return;
+    }
   }
 }
