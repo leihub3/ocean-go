@@ -73,7 +73,23 @@ export class TidesProvider {
       url.searchParams.set('key', this.apiKey);
       url.searchParams.set('heights', '1'); // Request heights
 
-      const response = await fetch(url.toString());
+      // Add timeout to fetch request (15 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      let response: Response;
+      try {
+        response = await fetch(url.toString(), {
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('WorldTides API request timeout (15s)');
+        }
+        throw error;
+      }
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`WorldTides API error: ${response.status} ${response.statusText}`);

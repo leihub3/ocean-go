@@ -66,7 +66,23 @@ export class WeatherProvider {
       url.searchParams.set('units', 'metric');
       url.searchParams.set('exclude', 'minutely,daily,alerts');
 
-      const response = await fetch(url.toString());
+      // Add timeout to fetch request (15 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      let response: Response;
+      try {
+        response = await fetch(url.toString(), {
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('OpenWeather API request timeout (15s)');
+        }
+        throw error;
+      }
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`OpenWeather API error: ${response.status} ${response.statusText}`);
