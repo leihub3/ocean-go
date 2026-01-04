@@ -207,20 +207,25 @@ export const OceanConditionsChart = ({
     }
     
     // Return the closest index found, or 0 if none found
-    return closestIndex;
+    // But ensure we don't start beyond available data
+    return Math.min(closestIndex, hourlyForecast.length - 1);
   }, [hourlyForecast]);
   
   // Split forecast into 3 chunks of 24 hours each, starting from startIndex
   const forecastChunks = useMemo(() => {
     const chunks: HourlyForecast[][] = [];
+    const maxIndex = hourlyForecast.length;
+    
     for (let i = 0; i < 3; i++) {
       const chunkStart = startIndex + (i * 24);
-      const chunkEnd = chunkStart + 24;
-      const chunk = hourlyForecast.slice(chunkStart, chunkEnd);
-      // Only add chunk if it has at least some data
-      if (chunk.length > 0) {
+      const chunkEnd = Math.min(chunkStart + 24, maxIndex);
+      
+      // Only create chunk if start is within bounds
+      if (chunkStart < maxIndex) {
+        const chunk = hourlyForecast.slice(chunkStart, chunkEnd);
         chunks.push(chunk);
       } else {
+        // No data available for this period
         chunks.push([]);
       }
     }

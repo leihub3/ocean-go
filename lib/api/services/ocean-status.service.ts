@@ -98,29 +98,39 @@ export class OceanStatusService {
     ) || null;
 
     // Merge hourly forecast with tide heights if available
+    // Simplified and optimized: create a Map for O(1) lookup by time
     let mergedHourlyForecast = weatherResult.hourly;
     if (weatherResult.hourly && tidesResult.hourlyHeights && tidesResult.hourlyHeights.length > 0) {
+      // Pre-compute tide times for faster lookup
+      const tideTimes = tidesResult.hourlyHeights.map(t => new Date(t.time).getTime());
+      const THIRTY_MIN = 30 * 60 * 1000;
+      
       mergedHourlyForecast = weatherResult.hourly.map(hour => {
-        const hourTime = new Date(hour.time);
-        // Find the closest tide height (within 30 minutes)
-        const closestTide = tidesResult.hourlyHeights?.reduce((closest, tide) => {
-          if (!closest) return tide;
-          const tideTime = new Date(tide.time);
-          const closestTime = new Date(closest.time);
-          const tideDiff = Math.abs(hourTime.getTime() - tideTime.getTime());
-          const closestDiff = Math.abs(hourTime.getTime() - closestTime.getTime());
-          return tideDiff < closestDiff ? tide : closest;
-        });
+        const hourTime = new Date(hour.time).getTime();
+        
+        // Find closest tide (simple linear search but limited to 72 items max)
+        let closestTide = null;
+        let minDiff = Infinity;
+        
+        for (let i = 0; i < tidesResult.hourlyHeights.length; i++) {
+          const tide = tidesResult.hourlyHeights[i];
+          if (!tide) continue;
+          const tideTime = tideTimes[i];
+          if (tideTime === undefined) continue;
+          
+          const diff = Math.abs(hourTime - tideTime);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestTide = tide;
+          }
+        }
         
         // Only include if within 30 minutes
-        if (closestTide) {
-          const timeDiff = Math.abs(hourTime.getTime() - new Date(closestTide.time).getTime());
-          if (timeDiff <= 30 * 60 * 1000) {
-            return {
-              ...hour,
-              tideHeight: Number(closestTide.height.toFixed(2)),
-            };
-          }
+        if (closestTide && minDiff <= THIRTY_MIN) {
+          return {
+            ...hour,
+            tideHeight: Number(closestTide.height.toFixed(2)),
+          };
         }
         return hour;
       });

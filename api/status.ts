@@ -166,6 +166,10 @@ export default async function handler(request: Request): Promise<Response> {
       status = await service.getOceanStatus(regionConfig);
       const duration = Date.now() - startTime;
       console.log(`[${regionId}] Ocean status fetched in ${duration}ms`);
+      
+      // Log response size for debugging
+      const responseSize = JSON.stringify(status).length;
+      console.log(`[${regionId}] Response size: ${responseSize} bytes`);
     } catch (error) {
       console.error(`[${regionId}] Service error:`, error);
       console.error(`[${regionId}] Error stack:`, error instanceof Error ? error.stack : 'No stack');
@@ -189,7 +193,13 @@ export default async function handler(request: Request): Promise<Response> {
     // Cache the result
     setCache(regionId, status);
 
-    return new Response(JSON.stringify(status), {
+    // Serialize response
+    const jsonStart = Date.now();
+    const jsonResponse = JSON.stringify(status);
+    const jsonDuration = Date.now() - jsonStart;
+    console.log(`[${regionId}] JSON serialization took ${jsonDuration}ms`);
+
+    return new Response(jsonResponse, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
