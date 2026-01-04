@@ -81,10 +81,22 @@ function getRegionConfig(regionId: string) {
  * Vercel serverless function handler
  */
 export default async function handler(request: Request): Promise<Response> {
+  let regionId: string | null = null;
+  
   try {
     // Parse query parameters
-    const url = new URL(request.url);
-    const regionId = url.searchParams.get('region');
+    // Handle both absolute URLs and relative paths (Vercel edge runtime)
+    let url: URL;
+    try {
+      url = new URL(request.url);
+    } catch (urlError) {
+      // If request.url is relative, construct absolute URL
+      // Vercel provides request headers with host information
+      const host = request.headers.get('host') || request.headers.get('x-forwarded-host') || 'localhost';
+      const protocol = request.headers.get('x-forwarded-proto') || 'https';
+      url = new URL(request.url, `${protocol}://${host}`);
+    }
+    regionId = url.searchParams.get('region');
 
     if (!regionId) {
       return new Response(
@@ -170,8 +182,23 @@ export default async function handler(request: Request): Promise<Response> {
       },
     });
   } catch (error) {
-    const regionId = new URL(request.url).searchParams.get('region') || 'unknown';
-    console.error(`[${regionId}] Handler error:`, error);
+    // Safely extract regionId from request URL if not already set
+    if (!regionId) {
+      try {
+        let url: URL;
+        try {
+          url = new URL(request.url);
+        } catch {
+          const host = request.headers.get('host') || request.headers.get('x-forwarded-host') || 'localhost';
+          const protocol = request.headers.get('x-forwarded-proto') || 'https';
+          url = new URL(request.url, `${protocol}://${host}`);
+        }
+        regionId = url.searchParams.get('region');
+      } catch {
+        regionId = 'unknown';
+      }
+    }
+    console.error(`[${regionId || 'unknown'}] Handler error:`, error);
     console.error(`[${regionId}] Error details:`, {
       message: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : 'No stack',
