@@ -187,6 +187,7 @@ export const OceanConditionsChart = ({
         timeFull: time.toISOString(), // For day calculations
         timeLabel: formatXAxisLabel(hour.time, index, forecast24Hours.map(h => h.time)),
         hour: time.getHours(),
+        hourFormatted: `${time.getHours()}h`, // For tooltip consistency
         day: time.getDate(), // For detecting day changes
         windSpeed: Number(hour.windSpeed.toFixed(1)),
         windDirection: hour.windDirection,
@@ -331,9 +332,12 @@ export const OceanConditionsChart = ({
   const OceanTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      // Use timeLabel for consistency with X-axis (shows day + hour like "D 4.1. 12h")
+      // Fallback to hourFormatted or time if timeLabel is not available
+      const displayTime = data.timeLabel || data.hourFormatted || data.time;
       return (
         <div className={styles.tooltip}>
-          <p className={styles.tooltipTime}>{data.time}</p>
+          <p className={styles.tooltipTime}>{displayTime}</p>
           <p style={{ color: '#0ea5e9' }}>
             💨 {data.windKmh} km/h ({data.windSpeed} m/s)
             {data.windDirection !== undefined && (
@@ -364,9 +368,11 @@ export const OceanConditionsChart = ({
   const AtmosphericTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      // Use timeLabel for consistency with X-axis, or fallback to hourFormatted
+      const displayTime = data.timeLabel || data.hourFormatted || data.time;
       return (
         <div className={styles.tooltip}>
-          <p className={styles.tooltipTime}>{data.time}</p>
+          <p className={styles.tooltipTime}>{displayTime}</p>
           {data.temperature !== null && (
             <p style={{ color: '#f97316' }}>
               🌡️ {data.temperature}°C
@@ -466,8 +472,10 @@ export const OceanConditionsChart = ({
                   fontSize={11}
                   tick={{ fill: '#6b7280' }}
                   interval={2} // Show every 3 hours (0, 3, 6, 9, 12, 15, 18, 21)
-                  tickFormatter={(value, index) => {
-                    const dataPoint = chartData[index];
+                  tickFormatter={(value) => {
+                    // value is the time string (e.g., "20:00")
+                    // Find the dataPoint that has this exact time to get the correct timeLabel
+                    const dataPoint = chartData.find(d => d.time === value);
                     return dataPoint?.timeLabel || value;
                   }}
                 />
@@ -672,8 +680,10 @@ export const OceanConditionsChart = ({
                     fontSize={11}
                     tick={{ fill: '#6b7280' }}
                     interval={2} // Show every 3 hours (0, 3, 6, 9, 12, 15, 18, 21)
-                    tickFormatter={(value, index) => {
-                      const dataPoint = chartData[index];
+                    tickFormatter={(value) => {
+                      // value is the time string (e.g., "20:00")
+                      // Find the dataPoint that has this exact time to get the correct timeLabel
+                      const dataPoint = chartData.find(d => d.time === value);
                       return dataPoint?.timeLabel || value;
                     }}
                   />
