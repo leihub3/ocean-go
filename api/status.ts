@@ -92,8 +92,24 @@ export default async function handler(request: Request): Promise<Response> {
     } catch (urlError) {
       // If request.url is relative, construct absolute URL
       // Vercel provides request headers with host information
-      const host = request.headers.get('host') || request.headers.get('x-forwarded-host') || 'localhost';
-      const protocol = request.headers.get('x-forwarded-proto') || 'https';
+      // Handle both Headers object and plain object
+      const headers = request.headers || {};
+      const getHeader = (name: string): string | null => {
+        if (typeof headers.get === 'function') {
+          return headers.get(name);
+        }
+        // Plain object access
+        const lowerName = name.toLowerCase();
+        for (const [key, value] of Object.entries(headers)) {
+          if (key.toLowerCase() === lowerName) {
+            return Array.isArray(value) ? value[0] : String(value);
+          }
+        }
+        return null;
+      };
+      
+      const host = getHeader('host') || getHeader('x-forwarded-host') || 'localhost';
+      const protocol = getHeader('x-forwarded-proto') || 'https';
       url = new URL(request.url, `${protocol}://${host}`);
     }
     regionId = url.searchParams.get('region');
@@ -189,8 +205,24 @@ export default async function handler(request: Request): Promise<Response> {
         try {
           url = new URL(request.url);
         } catch {
-          const host = request.headers.get('host') || request.headers.get('x-forwarded-host') || 'localhost';
-          const protocol = request.headers.get('x-forwarded-proto') || 'https';
+          // Handle both Headers object and plain object
+          const headers = request.headers || {};
+          const getHeader = (name: string): string | null => {
+            if (typeof headers.get === 'function') {
+              return headers.get(name);
+            }
+            // Plain object access
+            const lowerName = name.toLowerCase();
+            for (const [key, value] of Object.entries(headers)) {
+              if (key.toLowerCase() === lowerName) {
+                return Array.isArray(value) ? value[0] : String(value);
+              }
+            }
+            return null;
+          };
+          
+          const host = getHeader('host') || getHeader('x-forwarded-host') || 'localhost';
+          const protocol = getHeader('x-forwarded-proto') || 'https';
           url = new URL(request.url, `${protocol}://${host}`);
         }
         regionId = url.searchParams.get('region');
